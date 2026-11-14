@@ -1,0 +1,4313 @@
+#!/usr/bin/env bash
+# gh-sweep — delete GitHub Actions artifacts and caches.
+#
+# Start on a project list. Check a repository and press d to delete every
+# artifact and cache in it, or press enter and check individual rows.
+# Artifact rows are grouped by name, cache rows by key. Nothing is deleted
+# until you confirm. Large files are deleted first, because a few artifacts
+# usually hold almost all of the bytes, and expired artifacts still count
+# against the Actions storage quota.
+#
+#   gh-sweep
+#   gh-sweep owner/repo other/repo
+#   gh-sweep --org my-org
+#   gh-sweep --mine
+#   gh sweep owner/repo          # if this file is on PATH as gh-sweep
+#
+# Needs bash 3.2+ (the bash that ships with macOS) and the GitHub CLI.
+
+VERSION=1.0.0
+STRICT_COUNT=20
+STRICT_BYTES=$((1024 * 1024 * 1024))
+CACHE_CAP=10000
+
+usage() {
+  cat <<'EOF'
+Usage: gh-sweep [options] [owner/repo ...]
+
+Delete GitHub Actions artifacts and caches from one or more repositories.
+The first screen is the project list:
+
+  space    mark a project, then d deletes ALL of its artifacts and caches
+  enter    open that project and check individual artifacts or caches
+
+With no arguments, the current checkout is listed. --org and --mine fill
+the list from GitHub so you can pick repositories.
+
+Options:
+  -R, --repo OWNER/REPO   Repository, repeatable (same as a positional arg)
+  --org ORG               List repositories in this organization
+  --user USER             List repositories owned by this user
+  --mine                  List repositories for the logged-in user
+  --artifacts-only        Don't list or delete caches
+  --caches-only           Don't list or delete artifacts
+  --filter TEXT           Start the item view with this filter
+  --dry-run               Walk through confirmations without deleting
+  --ascii                 ASCII rules and separators
+  --no-color              Disable color
+  -V, --version           Print version
+  -h, --help              Show this help
+
+Project keys:
+  space a n    mark, mark all shown, clear shown
+  enter        pick individual artifacts and caches
+  d            delete everything in the marked projects
+  s            scan sizes without deleting
+  +            add owner/repo
+  /            filter the project list
+  q            quit
+
+Inside a project:
+  space        toggle the row. A group toggles every row inside it.
+  enter        toggle an item, or open and close a group
+  j k          move. Arrows do the same. J/K or PgUp/PgDn page.
+  h l          collapse or expand. e/c fold all. g/G top and bottom.
+  a n          select or clear what the filter shows. A and C limit the kind.
+  N            clear every selection, including rows a filter hides
+  x            select expired artifacts (they still use quota)
+  o            select artifacts older than N days
+  t            keep the newest N of each artifact name, select the rest
+  d            delete the checked rows. y confirms.
+  b            back to the project list
+  / r ? q      filter, refresh, help, quit
+
+Deletes run largest-first and call:
+  gh api -X DELETE repos/OWNER/REPO/actions/artifacts/ID
+  gh cache delete ID -R OWNER/REPO
+
+GitHub recalculates artifact usage every 6–12 hours, so a deploy can still
+report a full quota after a successful cleanup.
+EOF
+}
+
+die() {
+  printf 'gh-sweep: %s\n' "$1" >&2
+  exit 2
+}
+
+parse_args() {
+  repo=""
+  cli_repos=()
+  org_name=""
+  user_name=""
+  list_mine=0
+  dry_run=0
+  only=""
+  ascii_flag=0
+  no_color_flag=0
+  initial_filter=""
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      -V|--version)
+        printf 'gh-sweep %s\n' "$VERSION"
+        exit 0
+        ;;
+      -R|--repo)
+        [[ $# -ge 2 ]] || die "missing repository after $1"
+        cli_repos+=("$2")
+        shift 2
+        ;;
+      --repo=*)
+        cli_repos+=("${1#--repo=}")
+        shift
+        ;;
+      --org)
+        [[ $# -ge 2 ]] || die "missing organization after --org"
+        org_name=$2
+        shift 2
+        ;;
+      --org=*)
+        org_name=${1#--org=}
+        shift
+        ;;
+      --user)
+        [[ $# -ge 2 ]] || die "missing user after --user"
+        user_name=$2
+        shift 2
+        ;;
+      --user=*)
+        user_name=${1#--user=}
+        shift
+        ;;
+      --mine)
+        list_mine=1
+        shift
+        ;;
+      --artifacts-only)
+        [[ $only != cache ]] || die "use either --artifacts-only or --caches-only"
+        only=artifact
+        shift
+        ;;
+      --caches-only)
+        [[ $only != artifact ]] || die "use either --artifacts-only or --caches-only"
+        only=cache
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --ascii)
+        ascii_flag=1
+        shift
+        ;;
+      --no-color)
+        no_color_flag=1
+        shift
+        ;;
+      --filter)
+        [[ $# -ge 2 ]] || die "missing text after --filter"
+        initial_filter=$2
+        shift 2
+        ;;
+      --filter=*)
+        initial_filter=${1#--filter=}
+        shift
+        ;;
+      --)
+        shift
+        while [[ $# -gt 0 ]]; do
+          cli_repos+=("$1")
+          shift
+        done
+        ;;
+      -*)
+        die "unknown option: $1 (try --help)"
+        ;;
+      *)
+        cli_repos+=("$1")
+        shift
+        ;;
+    esac
+  done
+  if ((${#cli_repos[@]} > 0)) && [[ -n $org_name || -n $user_name || $list_mine == 1 ]]; then
+    die "pass repositories or --org/--user/--mine, not both"
+  fi
+  if [[ -n $org_name && (-n $user_name || $list_mine == 1) ]]; then
+    die "use only one of --org, --user, or --mine"
+  fi
+  if [[ -n $user_name && $list_mine == 1 ]]; then
+    die "use only one of --user or --mine"
+  fi
+}
+
+# Sets host, owner, name, api_hostname, repo_nwo_full. Returns 1 if invalid.
+parse_repo() {
+  local raw=$1 rest h
+  raw=${raw%.git}
+  host=""
+  owner=""
+  name=""
+  api_hostname=""
+  repo_nwo_full=""
+  case $raw in
+    */*/*/*) return 1 ;;
+    */*/*)
+      host=${raw%%/*}
+      rest=${raw#*/}
+      owner=${rest%%/*}
+      name=${rest#*/}
+      ;;
+    */*)
+      owner=${raw%%/*}
+      name=${raw#*/}
+      ;;
+    *) return 1 ;;
+  esac
+  name=${name%.git}
+  [[ -n $owner && -n $name ]] || return 1
+  [[ $owner != "." && $owner != ".." && $name != "." && $name != ".." ]] || return 1
+  [[ $owner =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]] || return 1
+  [[ $name =~ ^[A-Za-z0-9_.][A-Za-z0-9_.-]*$ ]] || return 1
+  if [[ -n $host ]]; then
+    [[ $host == *.* ]] || return 1
+    [[ $host =~ ^[A-Za-z0-9.-]+$ ]] || return 1
+    [[ $host != *..* ]] || return 1
+    if [[ $host == github.com || $host == www.github.com ]]; then
+      host=""
+    fi
+  fi
+  if [[ -n $host ]]; then
+    api_hostname=$host
+    repo_nwo_full="${host}/${owner}/${name}"
+  else
+    api_hostname=""
+    repo_nwo_full="${owner}/${name}"
+  fi
+  return 0
+}
+
+init_style() {
+  use_color=1
+  if [[ ${no_color_flag:-0} == 1 || -n ${NO_COLOR:-} ]]; then
+    use_color=0
+  fi
+  unicode=0
+  if [[ ${ascii_flag:-0} != 1 && -z ${GH_SWEEP_ASCII:-} ]]; then
+    local loc=${LC_ALL:-${LC_CTYPE:-${LANG:-}}}
+    case $loc in
+      *[Uu][Tt][Ff]*) unicode=1 ;;
+    esac
+  fi
+  if (( unicode )); then
+    SEP=$' · '
+    RULE_CHAR=$'─'
+    ELLIPSIS=$'…'
+  else
+    SEP=' | '
+    RULE_CHAR='-'
+    ELLIPSIS='~'
+  fi
+  if (( use_color )); then
+    C_RESET=$'\033[0m'
+    C_BOLD=$'\033[1m'
+    C_DIM=$'\033[2m'
+    C_YELLOW=$'\033[33m'
+    C_BRED=$'\033[1;31m'
+    C_BGREEN=$'\033[1;32m'
+    C_BYELLOW=$'\033[1;33m'
+    C_BCYAN=$'\033[1;36m'
+  else
+    C_RESET=""
+    C_BOLD=""
+    C_DIM=""
+    C_YELLOW=""
+    C_BRED=""
+    C_BGREEN=""
+    C_BYELLOW=""
+    C_BCYAN=""
+  fi
+}
+
+init_runtime() {
+  only=${only:-}
+  dry_run=${dry_run:-0}
+  ascii_flag=${ascii_flag:-0}
+  no_color_flag=${no_color_flag:-0}
+  auto_expand=${auto_expand:-1}
+  repo=${repo:-}
+  owner=""
+  name=""
+  host=""
+  api_hostname=""
+  repo_nwo_full=""
+  initial_filter=${initial_filter:-}
+  WIPE_COUNT=0
+  WIPE_ITEMS=0
+  WIPE_BYTES=0
+  WIPE_EXPIRED=0
+  if [[ -z ${tmpdir:-} ]]; then
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/gh-sweep.XXXXXX")
+  fi
+  detect_date
+  init_style
+  reset_model
+  QUIT=0
+  ABORT=0
+  WINCH=0
+  mode=projects
+  return_mode=projects
+  help_from=projects
+  confirm_scope=items
+  confirm_token=""
+  prompt_kind=""
+  prompt_from=list
+  open_proj=-1
+  proj_cursor=0
+  proj_scroll=0
+  proj_filter=""
+  proj_filter_edit=0
+  proj_note=""
+  n_proj=0
+  proj_owner=()
+  proj_name=()
+  proj_host=()
+  proj_api=()
+  proj_nwo=()
+  proj_on=()
+  proj_scanned=()
+  proj_art_n=()
+  proj_art_bytes=()
+  proj_exp_n=()
+  proj_exp_bytes=()
+  proj_cache_n=()
+  proj_cache_bytes=()
+  proj_error=()
+  proj_view=()
+  SKIP_SET="|"
+  GRAND_TOTAL=0
+  DELETED_N=0
+  RESULT_WHERE=""
+  session_repo_list=""
+  filter=""
+  filter_l=""
+  filter_edit=0
+  status_msg=""
+  fatal_load=0
+  session_art=0
+  session_cache=0
+  session_bytes=0
+  in_alt=0
+  cleaned=0
+  saved_stty=""
+  ALT_MODE=""
+  KEY=""
+  PASTE=""
+  GH_OUT=""
+  FETCH_OUT=""
+  confirm_strict=0
+  confirm_buf=""
+  prompt_buf=""
+  prompt_title=""
+  first_build=1
+  USABLE=79
+  COLS=80
+  ROWS=24
+  HEADER_H=3
+  FOOTER_H=3
+  WINDOW=10
+  anchor_kind=""
+  anchor_id=""
+  anchor_group=""
+  WORK_INDEX=0
+  WORK_TOTAL=0
+  WORK_LABEL=""
+  WORK_DETAIL=""
+  WORK_FREED=0
+  WORK_FAILS=0
+  WORK_NOTE=""
+  RESULT_ART=0
+  RESULT_CACHE=0
+  RESULT_BYTES=0
+  RESULT_FAILS=0
+  RESULT_ABORT=0
+  fail_lines=()
+  saved_sel=()
+  saved_open=()
+  work_sel=()
+  ART_RAW=""
+  CACHE_RAW=""
+  art_error=""
+  cache_error=""
+  load_note=""
+  art_total_count=0
+  want_art=1
+  want_cache=1
+  if [[ $only == artifact ]]; then
+    want_cache=0
+  elif [[ $only == cache ]]; then
+    want_art=0
+  fi
+  STAT_LIVE=0
+  STAT_ON=0
+  STAT_BYTES=0
+  STAT_STATE=none
+  SEL_COUNT=0
+  SEL_BYTES=0
+  SEL_ART=0
+  SEL_CACHE=0
+  SEL_HIDDEN=0
+}
+
+reset_model() {
+  item_kind=()
+  item_id=()
+  item_name=()
+  item_size=()
+  item_epoch=()
+  item_meta=()
+  item_expired=()
+  item_on=()
+  item_dead=()
+  item_search=()
+  item_group=()
+  item_run=()
+  n_items=0
+  group_kind=()
+  group_name=()
+  group_start=()
+  group_len=()
+  group_open=()
+  group_bytes=()
+  art_groups=()
+  cache_groups=()
+  view_type=()
+  view_ref=()
+  art_total_count=0
+  cursor=0
+  scroll=0
+}
+
+detect_date() {
+  if date -j -f "%Y-%m-%d" "2020-01-02" "+%Y-%m-%d" >/dev/null 2>&1; then
+    DATE_KIND=bsd
+  else
+    DATE_KIND=gnu
+  fi
+}
+
+strip_controls() {
+  printf '%s' "$1" | LC_ALL=C tr -d '[:cntrl:]'
+}
+
+plural_word() {
+  local n=$1 one=$2 many=$3
+  if [[ $n == 1 ]]; then
+    printf '%s' "$one"
+  else
+    printf '%s' "$many"
+  fi
+}
+
+_fit() {
+  local s=$1 w=$2 n
+  n=${#s}
+  if (( w <= 0 )); then
+    FIT=""
+    return
+  fi
+  if (( n <= w )); then
+    FIT=$s
+    return
+  fi
+  if (( w == 1 )); then
+    FIT=$ELLIPSIS
+    return
+  fi
+  FIT="${s:0:w-1}${ELLIPSIS}"
+}
+
+fit_print() {
+  _fit "$1" "$2"
+  printf '%s' "$FIT"
+}
+
+human_size() {
+  local b=${1:-0}
+  if [[ ! $b =~ ^[0-9]+$ ]]; then
+    b=0
+  fi
+  awk -v b="$b" 'BEGIN {
+    split("B KB MB GB TB PB", u, " ")
+    i = 1
+    n = b + 0
+    while (n >= 1024 && i < 6) {
+      n /= 1024
+      i++
+    }
+    if (i == 1) printf "%d B", n
+    else if (n >= 100) printf "%.0f %s", n, u[i]
+    else printf "%.1f %s", n, u[i]
+  }'
+}
+
+fmt_day() {
+  local epoch=$1
+  if [[ $DATE_KIND == bsd ]]; then
+    date -r "$epoch" "+%Y-%m-%d" 2>/dev/null || printf '%s' '-'
+  else
+    date -d "@$epoch" "+%Y-%m-%d" 2>/dev/null || printf '%s' '-'
+  fi
+}
+
+human_time() {
+  local epoch=${1:-0} now d
+  if [[ ! $epoch =~ ^[0-9]+$ || $epoch == 0 ]]; then
+    printf '%s' '-'
+    return
+  fi
+  if [[ -n ${NOW_EPOCH:-} ]]; then
+    now=$NOW_EPOCH
+  else
+    now=$(date +%s)
+  fi
+  d=$((now - epoch))
+  if (( d < 0 )); then
+    d=0
+  fi
+  if (( d < 60 )); then
+    printf 'just now'
+  elif (( d < 3600 )); then
+    printf '%dm ago' $((d / 60))
+  elif (( d < 86400 )); then
+    printf '%dh ago' $((d / 3600))
+  elif (( d < 14 * 86400 )); then
+    printf '%dd ago' $((d / 86400))
+  else
+    fmt_day "$epoch"
+  fi
+}
+
+# ISO-8601 to epoch seconds. Fractional seconds and numeric offsets are
+# accepted. Z means UTC. Empty or unparseable input prints 0.
+iso_to_epoch() {
+  local s=${1:-} head tail base sign hh mm offset epoch
+  if [[ -z $s || $s == null ]]; then
+    printf '0'
+    return
+  fi
+  if [[ $s == *.* ]]; then
+    head=${s%%.*}
+    tail=${s#*.}
+    tail=$(printf '%s' "$tail" | sed -E 's/^[0-9]+//')
+    s="${head}${tail}"
+  fi
+  base=$s
+  offset=0
+  if [[ $s == *Z ]]; then
+    base=${s%Z}
+  elif [[ $s =~ ^(.+)([+-])([0-9]{2}):([0-9]{2})$ ]]; then
+    base=${BASH_REMATCH[1]}
+    sign=${BASH_REMATCH[2]}
+    hh=${BASH_REMATCH[3]}
+    mm=${BASH_REMATCH[4]}
+    offset=$((10#$hh * 3600 + 10#$mm * 60))
+    if [[ $sign == "+" ]]; then
+      offset=$((-offset))
+    fi
+  fi
+  if [[ $DATE_KIND == bsd ]]; then
+    epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$base" "+%s" 2>/dev/null || true)
+  else
+    epoch=$(TZ=UTC date -u -d "$base" "+%s" 2>/dev/null || true)
+  fi
+  if [[ ! $epoch =~ ^[0-9]+$ ]]; then
+    printf '0'
+    return
+  fi
+  printf '%s' $((epoch + offset))
+}
+
+shorten_ref() {
+  local r=${1:-} n
+  case $r in
+    "") printf '%s' '-' ;;
+    refs/heads/*) printf '%s' "${r#refs/heads/}" ;;
+    refs/tags/*) printf 'tag:%s' "${r#refs/tags/}" ;;
+    refs/pull/*/merge)
+      n=${r#refs/pull/}
+      n=${n%/merge}
+      printf 'pr/%s' "$n"
+      ;;
+    refs/pull/*/head)
+      n=${r#refs/pull/}
+      n=${n%/head}
+      printf 'pr/%s' "$n"
+      ;;
+    *) printf '%s' "$r" ;;
+  esac
+}
+
+add_item() {
+  local kind=$1 id=$2 name=$3 size=$4 epoch=$5 meta=$6 expired=$7 run=$8 extra=${9:-}
+  local i blob skip_key
+  if [[ $kind == artifact ]]; then
+    skip_key="a:${id}"
+  else
+    skip_key="c:${id}"
+  fi
+  case ${SKIP_SET:-|} in
+    *"|${skip_key}|"*) return 0 ;;
+  esac
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_kind[$i]} == "$kind" && ${item_id[$i]} == "$id" ]]; then
+      return 0
+    fi
+  done
+  if [[ -z $name ]]; then
+    name="(unnamed)"
+  fi
+  if ((${#name} > 300)); then
+    name=${name:0:300}
+  fi
+  blob="$name $meta $id $kind"
+  if [[ $expired == 1 ]]; then
+    blob+=" expired"
+  fi
+  if [[ -n $run && $run != 0 ]]; then
+    blob+=" $run"
+  fi
+  if [[ -n $extra ]]; then
+    blob+=" $extra"
+  fi
+  blob=$(printf '%s' "$blob" | tr '[:upper:]' '[:lower:]')
+  item_kind+=("$kind")
+  item_id+=("$id")
+  item_name+=("$name")
+  item_size+=("$size")
+  item_epoch+=("$epoch")
+  item_meta+=("$meta")
+  item_expired+=("$expired")
+  item_on+=("0")
+  item_dead+=("0")
+  item_search+=("$blob")
+  item_group+=("-1")
+  item_run+=("$run")
+  n_items=$((n_items + 1))
+}
+
+parse_artifact_stream() {
+  local line id name size created expired branch run epoch
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line ]] && continue
+    if [[ $line == T\ * ]]; then
+      art_total_count=${line#T }
+      if [[ ! $art_total_count =~ ^[0-9]+$ ]]; then
+        art_total_count=0
+      fi
+      continue
+    fi
+    IFS=$'\037' read -r id name size created expired branch run <<< "$line"
+    id=$(strip_controls "$id")
+    name=$(strip_controls "$name")
+    size=$(strip_controls "$size")
+    created=$(strip_controls "$created")
+    expired=$(strip_controls "$expired")
+    branch=$(strip_controls "$branch")
+    run=$(strip_controls "$run")
+    [[ $id =~ ^[0-9]+$ ]] || continue
+    [[ $size =~ ^[0-9]+$ ]] || size=0
+    if [[ $expired != 1 ]]; then
+      expired=0
+    fi
+    branch=$(shorten_ref "$branch")
+    epoch=$(iso_to_epoch "$created")
+    add_item artifact "$id" "$name" "$size" "$epoch" "$branch" "$expired" "$run"
+  done
+}
+
+parse_cache_stream() {
+  local line id key size created ref accessed epoch meta
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line ]] && continue
+    IFS=$'\037' read -r id key size created ref accessed <<< "$line"
+    id=$(strip_controls "$id")
+    key=$(strip_controls "$key")
+    size=$(strip_controls "$size")
+    created=$(strip_controls "$created")
+    ref=$(strip_controls "$ref")
+    accessed=$(strip_controls "$accessed")
+    [[ $id =~ ^[0-9]+$ ]] || continue
+    [[ $size =~ ^[0-9]+$ ]] || size=0
+    epoch=$(iso_to_epoch "$accessed")
+    if [[ $epoch == 0 ]]; then
+      epoch=$(iso_to_epoch "$created")
+    fi
+    meta=$(shorten_ref "$ref")
+    add_item cache "$id" "$key" "$size" "$epoch" "$meta" 0 "" "$ref"
+  done
+}
+
+clear_new_items() {
+  new_kind=()
+  new_id=()
+  new_name=()
+  new_size=()
+  new_epoch=()
+  new_meta=()
+  new_expired=()
+  new_on=()
+  new_dead=()
+  new_search=()
+  new_group=()
+  new_run=()
+}
+
+commit_new_items() {
+  item_kind=()
+  item_id=()
+  item_name=()
+  item_size=()
+  item_epoch=()
+  item_meta=()
+  item_expired=()
+  item_on=()
+  item_dead=()
+  item_search=()
+  item_group=()
+  item_run=()
+  if ((${#new_kind[@]} > 0)); then
+    item_kind=("${new_kind[@]}")
+    item_id=("${new_id[@]}")
+    item_name=("${new_name[@]}")
+    item_size=("${new_size[@]}")
+    item_epoch=("${new_epoch[@]}")
+    item_meta=("${new_meta[@]}")
+    item_expired=("${new_expired[@]}")
+    item_on=("${new_on[@]}")
+    item_dead=("${new_dead[@]}")
+    item_search=("${new_search[@]}")
+    item_group=("${new_group[@]}")
+    item_run=("${new_run[@]}")
+  fi
+  n_items=${#item_kind[@]}
+}
+
+regroup() {
+  local kind=$1 expand_new=$2
+  local i any=0 line name epoch idx prev have_prev g
+  : > "$tmpdir/sortin"
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_kind[$i]} != "$kind" ]]; then
+      continue
+    fi
+    any=1
+    printf '%s\037%s\037%s\n' "${item_name[$i]}" "${item_epoch[$i]}" "$i" >> "$tmpdir/sortin"
+  done
+  if ((any == 0)); then
+    return
+  fi
+  LC_ALL=C sort -t $'\037' -k1,1 -k2,2nr -k3,3n "$tmpdir/sortin" > "$tmpdir/sortout"
+  have_prev=0
+  prev=""
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line ]] && continue
+    IFS=$'\037' read -r name epoch idx <<< "$line"
+    [[ -n ${idx:-} ]] || continue
+    if ((have_prev == 0)) || [[ $name != "$prev" ]]; then
+      group_kind+=("$kind")
+      group_name+=("$name")
+      group_start+=("${#new_kind[@]}")
+      group_len+=(0)
+      group_open+=("$expand_new")
+      group_bytes+=(0)
+      prev=$name
+      have_prev=1
+    fi
+    g=$((${#group_kind[@]} - 1))
+    new_kind+=("${item_kind[$idx]}")
+    new_id+=("${item_id[$idx]}")
+    new_name+=("${item_name[$idx]}")
+    new_size+=("${item_size[$idx]}")
+    new_epoch+=("${item_epoch[$idx]}")
+    new_meta+=("${item_meta[$idx]}")
+    new_expired+=("${item_expired[$idx]}")
+    new_on+=("${item_on[$idx]}")
+    new_dead+=("${item_dead[$idx]}")
+    new_search+=("${item_search[$idx]}")
+    new_group+=("$g")
+    new_run+=("${item_run[$idx]}")
+    group_len[$g]=$((group_len[$g] + 1))
+    if [[ ${item_dead[$idx]} != 1 ]]; then
+      group_bytes[$g]=$((group_bytes[$g] + ${item_size[$idx]}))
+    fi
+  done < "$tmpdir/sortout"
+}
+
+order_groups() {
+  local kind=$1
+  local g any=0 line b nm id
+  local out_g
+  out_g=()
+  : > "$tmpdir/gsort"
+  for ((g = 0; g < ${#group_kind[@]}; g++)); do
+    if [[ ${group_kind[$g]} != "$kind" ]]; then
+      continue
+    fi
+    any=1
+    printf '%s\037%s\037%s\n' "${group_bytes[$g]}" "${group_name[$g]}" "$g" >> "$tmpdir/gsort"
+  done
+  if ((any == 0)); then
+    if [[ $kind == artifact ]]; then
+      art_groups=()
+    else
+      cache_groups=()
+    fi
+    return
+  fi
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line ]] && continue
+    IFS=$'\037' read -r b nm id <<< "$line"
+    [[ -n ${id:-} ]] || continue
+    out_g+=("$id")
+  done < <(LC_ALL=C sort -t $'\037' -k1,1nr -k2,2 "$tmpdir/gsort")
+  if ((${#out_g[@]} == 0)); then
+    return
+  fi
+  if [[ $kind == artifact ]]; then
+    art_groups=("${out_g[@]}")
+  else
+    cache_groups=("${out_g[@]}")
+  fi
+}
+
+rebuild_groups() {
+  local expand_new=0
+  if ((first_build && auto_expand && n_items <= 10 && n_items > 0)); then
+    expand_new=1
+  fi
+  first_build=0
+  clear_new_items
+  group_kind=()
+  group_name=()
+  group_start=()
+  group_len=()
+  group_open=()
+  group_bytes=()
+  regroup artifact "$expand_new"
+  regroup cache "$expand_new"
+  commit_new_items
+  order_groups artifact
+  order_groups cache
+}
+
+finalize_notes() {
+  local n=0 c=0 i note=""
+  load_note=""
+  if [[ -n $art_error ]]; then
+    load_note=$art_error
+    return
+  fi
+  if [[ -n $cache_error ]]; then
+    load_note=$cache_error
+    return
+  fi
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_kind[$i]} == artifact ]]; then
+      n=$((n + 1))
+    else
+      c=$((c + 1))
+    fi
+  done
+  if ((want_art && art_total_count > n)); then
+    note="GitHub reports ${art_total_count} artifacts; the API returned ${n}."
+  fi
+  if ((want_cache && c >= CACHE_CAP)); then
+    if [[ -n $note ]]; then
+      note+=" Cache list stopped at ${CACHE_CAP}."
+    else
+      note="Cache list stopped at ${CACHE_CAP} entries."
+    fi
+  fi
+  load_note=$note
+}
+
+apply_streams() {
+  local ae=${art_error:-} ce=${cache_error:-}
+  local raw_a=${ART_RAW:-} raw_c=${CACHE_RAW:-}
+  reset_model
+  art_error=$ae
+  cache_error=$ce
+  ART_RAW=$raw_a
+  CACHE_RAW=$raw_c
+  if ((want_art)); then
+    parse_artifact_stream <<< "$ART_RAW"
+  fi
+  if ((want_cache)); then
+    parse_cache_stream <<< "$CACHE_RAW"
+  fi
+  rebuild_groups
+  finalize_notes
+}
+
+item_match() {
+  local i=$1
+  if [[ -z $filter_l ]]; then
+    return 0
+  fi
+  case ${item_search[$i]} in
+    *"$filter_l"*) return 0 ;;
+  esac
+  return 1
+}
+
+range_stats() {
+  local start=$1 len=$2 i end
+  end=$((start + len))
+  STAT_LIVE=0
+  STAT_ON=0
+  STAT_BYTES=0
+  STAT_STATE=none
+  for ((i = start; i < end; i++)); do
+    if [[ ${item_dead[$i]} == 1 ]]; then
+      continue
+    fi
+    if ! item_match "$i"; then
+      continue
+    fi
+    STAT_LIVE=$((STAT_LIVE + 1))
+    STAT_BYTES=$((STAT_BYTES + ${item_size[$i]}))
+    if [[ ${item_on[$i]} == 1 ]]; then
+      STAT_ON=$((STAT_ON + 1))
+    fi
+  done
+  if ((STAT_LIVE > 0 && STAT_ON == STAT_LIVE)); then
+    STAT_STATE=all
+  elif ((STAT_ON > 0)); then
+    STAT_STATE=some
+  else
+    STAT_STATE=none
+  fi
+}
+
+kind_stats() {
+  local kind=$1 i
+  STAT_LIVE=0
+  STAT_ON=0
+  STAT_BYTES=0
+  STAT_STATE=none
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_kind[$i]} != "$kind" ]]; then
+      continue
+    fi
+    if [[ ${item_dead[$i]} == 1 ]]; then
+      continue
+    fi
+    if ! item_match "$i"; then
+      continue
+    fi
+    STAT_LIVE=$((STAT_LIVE + 1))
+    STAT_BYTES=$((STAT_BYTES + ${item_size[$i]}))
+    if [[ ${item_on[$i]} == 1 ]]; then
+      STAT_ON=$((STAT_ON + 1))
+    fi
+  done
+  if ((STAT_LIVE > 0 && STAT_ON == STAT_LIVE)); then
+    STAT_STATE=all
+  elif ((STAT_ON > 0)); then
+    STAT_STATE=some
+  else
+    STAT_STATE=none
+  fi
+}
+
+group_has_live() {
+  range_stats "${group_start[$1]}" "${group_len[$1]}"
+  if ((STAT_LIVE > 0)); then
+    return 0
+  fi
+  return 1
+}
+
+section_visible() {
+  local kind=$1 g
+  if [[ $kind == artifact ]]; then
+    if ((${#art_groups[@]} == 0)); then
+      return 1
+    fi
+    for g in "${art_groups[@]}"; do
+      if group_has_live "$g"; then
+        return 0
+      fi
+    done
+    return 1
+  fi
+  if ((${#cache_groups[@]} == 0)); then
+    return 1
+  fi
+  for g in "${cache_groups[@]}"; do
+    if group_has_live "$g"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+append_groups() {
+  local kind=$1 g i start end
+  if [[ $kind == artifact ]]; then
+    if ((${#art_groups[@]} == 0)); then
+      return
+    fi
+    for g in "${art_groups[@]}"; do
+      if ! group_has_live "$g"; then
+        continue
+      fi
+      view_type+=("group")
+      view_ref+=("$g")
+      if [[ ${group_open[$g]} == 1 || -n $filter_l ]]; then
+        start=${group_start[$g]}
+        end=$((start + group_len[$g]))
+        for ((i = start; i < end; i++)); do
+          if [[ ${item_dead[$i]} == 1 ]]; then
+            continue
+          fi
+          if ! item_match "$i"; then
+            continue
+          fi
+          view_type+=("item")
+          view_ref+=("$i")
+        done
+      fi
+    done
+    return
+  fi
+  if ((${#cache_groups[@]} == 0)); then
+    return
+  fi
+  for g in "${cache_groups[@]}"; do
+    if ! group_has_live "$g"; then
+      continue
+    fi
+    view_type+=("group")
+    view_ref+=("$g")
+    if [[ ${group_open[$g]} == 1 || -n $filter_l ]]; then
+      start=${group_start[$g]}
+      end=$((start + group_len[$g]))
+      for ((i = start; i < end; i++)); do
+        if [[ ${item_dead[$i]} == 1 ]]; then
+          continue
+        fi
+        if ! item_match "$i"; then
+          continue
+        fi
+        view_type+=("item")
+        view_ref+=("$i")
+      done
+    fi
+  done
+}
+
+build_view() {
+  view_type=()
+  view_ref=()
+  if ((want_art)) && section_visible artifact; then
+    view_type+=("section")
+    view_ref+=("artifact")
+    append_groups artifact
+  fi
+  if ((want_cache)) && section_visible cache; then
+    view_type+=("section")
+    view_ref+=("cache")
+    append_groups cache
+  fi
+}
+
+place_cursor() {
+  local t=${1:-} r=${2:-} i n
+  n=${#view_type[@]}
+  cursor=0
+  if [[ -n $t && n -gt 0 ]]; then
+    for ((i = 0; i < n; i++)); do
+      if [[ ${view_type[$i]} == "$t" && ${view_ref[$i]} == "$r" ]]; then
+        cursor=$i
+        return
+      fi
+    done
+  fi
+  if ((n > 0)); then
+    for ((i = 0; i < n; i++)); do
+      if [[ ${view_type[$i]} == group || ${view_type[$i]} == item ]]; then
+        cursor=$i
+        return
+      fi
+    done
+  fi
+  cursor=0
+}
+
+update_view_keep_cursor() {
+  local t="" r=""
+  if ((${#view_type[@]} > 0 && cursor >= 0 && cursor < ${#view_type[@]})); then
+    t=${view_type[$cursor]}
+    r=${view_ref[$cursor]}
+  fi
+  build_view
+  place_cursor "$t" "$r"
+  ensure_scroll
+}
+
+toggle_group() {
+  local g=$1 v=1 i start end
+  range_stats "${group_start[$g]}" "${group_len[$g]}"
+  if [[ $STAT_STATE == all ]]; then
+    v=0
+  fi
+  start=${group_start[$g]}
+  end=$((start + group_len[$g]))
+  for ((i = start; i < end; i++)); do
+    if [[ ${item_dead[$i]} == 1 ]]; then
+      continue
+    fi
+    if item_match "$i"; then
+      item_on[$i]=$v
+    fi
+  done
+}
+
+toggle_kind() {
+  local kind=$1 v=1 i
+  kind_stats "$kind"
+  if [[ $STAT_STATE == all ]]; then
+    v=0
+  fi
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_kind[$i]} != "$kind" ]]; then
+      continue
+    fi
+    if [[ ${item_dead[$i]} == 1 ]]; then
+      continue
+    fi
+    if item_match "$i"; then
+      item_on[$i]=$v
+    fi
+  done
+}
+
+toggle_item() {
+  local i=$1
+  if [[ ${item_on[$i]} == 1 ]]; then
+    item_on[$i]=0
+  else
+    item_on[$i]=1
+  fi
+}
+
+toggle_current() {
+  local n=${#view_type[@]} t r
+  if ((n == 0)); then
+    return
+  fi
+  t=${view_type[$cursor]}
+  r=${view_ref[$cursor]}
+  case $t in
+    section) toggle_kind "$r" ;;
+    group) toggle_group "$r" ;;
+    item) toggle_item "$r" ;;
+  esac
+}
+
+select_visible() {
+  local value=$1 kind=$2 i
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_dead[$i]} == 1 ]]; then
+      continue
+    fi
+    if [[ -n $kind && ${item_kind[$i]} != "$kind" ]]; then
+      continue
+    fi
+    if item_match "$i"; then
+      item_on[$i]=$value
+    fi
+  done
+}
+
+clear_all_selection() {
+  local i
+  for ((i = 0; i < n_items; i++)); do
+    item_on[$i]=0
+  done
+}
+
+select_expired() {
+  local i c=0
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_kind[$i]} != artifact ]]; then
+      continue
+    fi
+    if [[ ${item_dead[$i]} == 1 || ${item_expired[$i]} != 1 ]]; then
+      continue
+    fi
+    if item_match "$i"; then
+      item_on[$i]=1
+      c=$((c + 1))
+    fi
+  done
+  status_msg="Selected ${c} expired $(plural_word "$c" artifact artifacts)"
+}
+
+select_older() {
+  local days=$1 now cutoff i c=0
+  if [[ -n ${NOW_EPOCH:-} ]]; then
+    now=$NOW_EPOCH
+  else
+    now=$(date +%s)
+  fi
+  cutoff=$((now - days * 86400))
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_kind[$i]} != artifact || ${item_dead[$i]} == 1 ]]; then
+      continue
+    fi
+    if [[ ! ${item_epoch[$i]} =~ ^[0-9]+$ || ${item_epoch[$i]} == 0 ]]; then
+      continue
+    fi
+    if ((${item_epoch[$i]} > cutoff)); then
+      continue
+    fi
+    if item_match "$i"; then
+      item_on[$i]=1
+      c=$((c + 1))
+    fi
+  done
+  status_msg="Selected ${c} $(plural_word "$c" artifact artifacts) older than ${days} days"
+}
+
+count_selected() {
+  local i
+  SEL_COUNT=0
+  SEL_BYTES=0
+  SEL_ART=0
+  SEL_CACHE=0
+  SEL_HIDDEN=0
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_dead[$i]} == 1 || ${item_on[$i]} != 1 ]]; then
+      continue
+    fi
+    SEL_COUNT=$((SEL_COUNT + 1))
+    SEL_BYTES=$((SEL_BYTES + ${item_size[$i]}))
+    if [[ ${item_kind[$i]} == artifact ]]; then
+      SEL_ART=$((SEL_ART + 1))
+    else
+      SEL_CACHE=$((SEL_CACHE + 1))
+    fi
+    if ! item_match "$i"; then
+      SEL_HIDDEN=$((SEL_HIDDEN + 1))
+    fi
+  done
+}
+
+count_shown() {
+  local i n=0
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_dead[$i]} == 1 ]]; then
+      continue
+    fi
+    if item_match "$i"; then
+      n=$((n + 1))
+    fi
+  done
+  printf '%s' "$n"
+}
+
+counts_line() {
+  local ac=0 cc=0 bytes=0 i parts=""
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_dead[$i]} == 1 ]]; then
+      continue
+    fi
+    bytes=$((bytes + ${item_size[$i]}))
+    if [[ ${item_kind[$i]} == artifact ]]; then
+      ac=$((ac + 1))
+    else
+      cc=$((cc + 1))
+    fi
+  done
+  if ((want_art)); then
+    parts="${ac} $(plural_word "$ac" artifact artifacts)"
+  fi
+  if ((want_cache)); then
+    if [[ -n $parts ]]; then
+      parts+="$SEP"
+    fi
+    parts+="${cc} $(plural_word "$cc" cache caches)"
+  fi
+  if [[ -n $parts ]]; then
+    parts+="$SEP"
+  fi
+  parts+="$(human_size "$bytes")"
+  printf '%s' "$parts"
+}
+
+summary_text() {
+  count_selected
+  if [[ -n $status_msg ]]; then
+    printf '%s' "$status_msg"
+    return
+  fi
+  if ((SEL_COUNT == 0)); then
+    printf 'nothing selected'
+    return
+  fi
+  printf '%d selected%s%s%s%d %s%s%d %s' \
+    "$SEL_COUNT" "$SEP" "$(human_size "$SEL_BYTES")" "$SEP" \
+    "$SEL_ART" "$(plural_word "$SEL_ART" artifact artifacts)" "$SEP" \
+    "$SEL_CACHE" "$(plural_word "$SEL_CACHE" cache caches)"
+  if ((SEL_HIDDEN > 0)); then
+    printf '%s%d hidden by filter' "$SEP" "$SEL_HIDDEN"
+  fi
+}
+
+# --- rendering -----------------------------------------------------------
+
+term_size() {
+  local size
+  if [[ -n ${GH_SWEEP_COLS:-} ]]; then
+    COLS=$GH_SWEEP_COLS
+    ROWS=${GH_SWEEP_ROWS:-24}
+  else
+    size=$(stty size 2>/dev/null || true)
+    if [[ $size =~ ^([0-9]+)[[:space:]]([0-9]+)$ ]]; then
+      ROWS=${BASH_REMATCH[1]}
+      COLS=${BASH_REMATCH[2]}
+    else
+      ROWS=24
+      COLS=80
+    fi
+  fi
+  if ((ROWS < 8)); then
+    ROWS=8
+  fi
+  if ((COLS < 40)); then
+    COLS=40
+  fi
+}
+
+layout_metrics() {
+  term_size
+  USABLE=$((COLS - 1))
+  if ((USABLE < 20)); then
+    USABLE=20
+  fi
+  HEADER_H=3
+  if [[ -n $filter && -n $load_note ]]; then
+    HEADER_H=4
+  fi
+  FOOTER_H=3
+  WINDOW=$((ROWS - 1 - HEADER_H - FOOTER_H))
+  if ((WINDOW < 1)); then
+    WINDOW=1
+  fi
+}
+
+ensure_scroll() {
+  local n max
+  layout_metrics
+  n=${#view_type[@]}
+  if ((n == 0)); then
+    scroll=0
+    return
+  fi
+  if ((cursor < 0)); then
+    cursor=0
+  fi
+  if ((cursor >= n)); then
+    cursor=$((n - 1))
+  fi
+  if ((cursor < scroll)); then
+    scroll=$cursor
+  fi
+  if ((cursor >= scroll + WINDOW)); then
+    scroll=$((cursor - WINDOW + 1))
+  fi
+  max=$((n - WINDOW))
+  if ((max < 0)); then
+    max=0
+  fi
+  if ((scroll > max)); then
+    scroll=$max
+  fi
+  if ((scroll < 0)); then
+    scroll=0
+  fi
+}
+
+screen_reset() {
+  screen_lines=()
+  screen_kind=()
+  screen_color=()
+}
+
+add_line() {
+  screen_kind+=("$1")
+  screen_lines+=("$2")
+  if [[ -n ${3-} ]]; then
+    screen_color+=("$3")
+  else
+    screen_color+=("$2")
+  fi
+}
+
+add_text() {
+  local kind=$1 text=$2 plain color
+  _fit "$text" "$USABLE"
+  plain=$FIT
+  color=$plain
+  if ((use_color)); then
+    case $kind in
+      title) color="${C_BCYAN}${plain}${C_RESET}" ;;
+      error) color="${C_BRED}${plain}${C_RESET}" ;;
+      warn) color="${C_YELLOW}${plain}${C_RESET}" ;;
+      good) color="${C_BGREEN}${plain}${C_RESET}" ;;
+      dim) color="${C_DIM}${plain}${C_RESET}" ;;
+      *) color=$plain ;;
+    esac
+  fi
+  add_line "$kind" "$plain" "$color"
+}
+
+add_rule() {
+  local rule i color
+  if ((unicode)); then
+    rule=""
+    for ((i = 0; i < USABLE; i++)); do
+      rule+="$RULE_CHAR"
+    done
+  else
+    printf -v rule '%*s' "$USABLE" ""
+    rule=${rule// /-}
+  fi
+  color=$rule
+  if ((use_color)); then
+    color="${C_DIM}${rule}${C_RESET}"
+  fi
+  add_line "rule" "$rule" "$color"
+}
+
+colorize_row() {
+  local lead=$1 mark=$2 box=$3 state=$4 lab=$5 gap=$6 right=$7 kind=$8 cur=$9
+  local markc boxc labc rightc base
+  if [[ $mark == ">" ]]; then
+    markc="${C_BCYAN}>${C_RESET}"
+  else
+    markc=" "
+  fi
+  boxc=""
+  if [[ -n $box ]]; then
+    case $state in
+      all) boxc="${C_BGREEN}${box}${C_RESET} " ;;
+      some) boxc="${C_BYELLOW}${box}${C_RESET} " ;;
+      *) boxc="${C_DIM}${box}${C_RESET} " ;;
+    esac
+  fi
+  if [[ $kind == section ]]; then
+    labc="${C_BCYAN}${lab}${C_RESET}"
+  elif ((cur)); then
+    labc="${C_BOLD}${lab}${C_RESET}"
+  else
+    labc=$lab
+  fi
+  if [[ $right == *" expired" ]]; then
+    base=${right% expired}
+    if ((cur)); then
+      rightc="${base} ${C_YELLOW}expired${C_RESET}"
+    else
+      rightc="${C_DIM}${base}${C_RESET} ${C_YELLOW}expired${C_RESET}"
+    fi
+  elif ((cur)); then
+    rightc=$right
+  else
+    rightc="${C_DIM}${right}${C_RESET}"
+  fi
+  printf '%s' "${lead}${markc}${boxc}${labc}${gap}${rightc}"
+}
+
+make_line() {
+  local level=$1 cur=$2 state=$3 label=$4 right=$5 kind=$6
+  local nspaces sp mark box prefix pw rw lw lab padn gapn gap plain color lead
+  nspaces=$((2 + level * 2))
+  printf -v sp '%*s' "$nspaces" ""
+  mark=" "
+  if ((cur)); then
+    mark=">"
+  fi
+  sp="${sp:0:nspaces-1}${mark}"
+  case $state in
+    all) box='[x]' ;;
+    some) box='[-]' ;;
+    none) box='[ ]' ;;
+    *) box='' ;;
+  esac
+  if [[ -n $box ]]; then
+    prefix="${sp}${box} "
+  else
+    prefix=$sp
+  fi
+  pw=${#prefix}
+  rw=${#right}
+  lw=$((USABLE - pw - 2 - rw))
+  if ((lw < 8)); then
+    lw=8
+    if ((USABLE - pw - 2 - lw < 0)); then
+      right=""
+      rw=0
+      lw=$((USABLE - pw))
+      if ((lw < 1)); then
+        lw=1
+      fi
+    else
+      _fit "$right" $((USABLE - pw - 2 - lw))
+      right=$FIT
+      rw=${#right}
+      lw=$((USABLE - pw - 2 - rw))
+    fi
+  fi
+  if ((lw < 1)); then
+    lw=1
+  fi
+  _fit "$label" "$lw"
+  lab=$FIT
+  padn=$((lw - ${#lab}))
+  if ((padn > 0)); then
+    printf -v lab '%s%*s' "$lab" "$padn" ""
+  fi
+  gapn=$((USABLE - pw - ${#lab} - rw))
+  if ((gapn < 1)); then
+    gapn=1
+  fi
+  if ((pw + ${#lab} + gapn + rw > USABLE)); then
+    gapn=$((USABLE - pw - ${#lab} - rw))
+    if ((gapn < 0)); then
+      gapn=0
+    fi
+  fi
+  printf -v gap '%*s' "$gapn" ""
+  plain="${prefix}${lab}${gap}${right}"
+  if ((${#plain} > USABLE)); then
+    plain=${plain:0:USABLE}
+  fi
+  color=$plain
+  if ((use_color)); then
+    lead=${sp:0:${#sp}-1}
+    color=$(colorize_row "$lead" "$mark" "$box" "$state" "$lab" "$gap" "$right" "$kind" "$cur")
+  fi
+  add_line "row" "$plain" "$color"
+}
+
+item_right() {
+  local meta=$1 epoch=$2 size=$3 id=$4 expired=$5
+  local time meta_f sz idf flag
+  time=$(human_time "$epoch")
+  _fit "$time" 10
+  printf -v time '%-10s' "$FIT"
+  _fit "$meta" 14
+  printf -v meta_f '%-14s' "$FIT"
+  sz=$(human_size "$size")
+  _fit "$sz" 8
+  printf -v sz '%8s' "$FIT"
+  idf="#${id}"
+  flag=""
+  if [[ $expired == 1 ]]; then
+    flag=" expired"
+  fi
+  if ((USABLE >= 92)); then
+    printf '%s %s %s  %s%s' "$meta_f" "$time" "$sz" "$idf" "$flag"
+  elif ((USABLE >= 68)); then
+    printf '%s %s  %s%s' "$time" "$sz" "$idf" "$flag"
+  else
+    printf '%s%s' "$sz" "$flag"
+  fi
+}
+
+section_right() {
+  local noun=$1 sz
+  sz=$(human_size "$STAT_BYTES")
+  if ((STAT_ON > 0)); then
+    printf '%d/%d %s%s%s' "$STAT_ON" "$STAT_LIVE" "$noun" "$SEP" "$sz"
+  else
+    printf '%d %s%s%s' "$STAT_LIVE" "$noun" "$SEP" "$sz"
+  fi
+}
+
+group_right() {
+  local sz
+  sz=$(human_size "$STAT_BYTES")
+  if ((STAT_ON > 0 && STAT_ON < STAT_LIVE)); then
+    printf '%d/%d%s%s' "$STAT_ON" "$STAT_LIVE" "$SEP" "$sz"
+  else
+    printf '%d%s%s' "$STAT_LIVE" "$SEP" "$sz"
+  fi
+}
+
+render_view_row() {
+  local row=$1 t ref cur=0 label noun right st
+  t=${view_type[$row]}
+  ref=${view_ref[$row]}
+  if ((row == cursor)); then
+    cur=1
+  fi
+  case $t in
+    section)
+      kind_stats "$ref"
+      if [[ $ref == artifact ]]; then
+        label=ARTIFACTS
+        noun=$(plural_word "$STAT_LIVE" item items)
+      else
+        label=CACHES
+        noun=$(plural_word "$STAT_LIVE" entry entries)
+      fi
+      right=$(section_right "$noun")
+      make_line 0 "$cur" "$STAT_STATE" "$label" "$right" section
+      ;;
+    group)
+      range_stats "${group_start[$ref]}" "${group_len[$ref]}"
+      right=$(group_right)
+      make_line 1 "$cur" "$STAT_STATE" "${group_name[$ref]}" "$right" group
+      ;;
+    item)
+      right=$(item_right "${item_meta[$ref]}" "${item_epoch[$ref]}" "${item_size[$ref]}" "${item_id[$ref]}" "${item_expired[$ref]}")
+      st=none
+      if [[ ${item_on[$ref]} == 1 ]]; then
+        st=all
+      fi
+      make_line 2 "$cur" "$st" "${item_name[$ref]}" "$right" item
+      ;;
+  esac
+}
+
+compose_header() {
+  local plain raw_len color info shown
+  plain="gh-sweep  ${repo_nwo_full}"
+  if ((dry_run)); then
+    plain+="   dry-run"
+  fi
+  raw_len=${#plain}
+  _fit "$plain" "$USABLE"
+  plain=$FIT
+  color=$plain
+  if ((use_color)); then
+    if ((raw_len <= USABLE)); then
+      color="${C_BCYAN}gh-sweep${C_RESET}  ${C_BOLD}${repo_nwo_full}${C_RESET}"
+      if ((dry_run)); then
+        color+="   ${C_YELLOW}dry-run${C_RESET}"
+      fi
+    else
+      color="${C_BOLD}${plain}${C_RESET}"
+    fi
+  fi
+  add_line "title" "$plain" "$color"
+  if [[ -n $filter && -n $load_note ]]; then
+    shown=$(count_shown)
+    info="/ ${filter}"
+    if ((filter_edit)); then
+      info+="_"
+    fi
+    info+="${SEP}${shown} shown"
+    add_text plain "$info"
+    add_text warn "$load_note"
+    return
+  fi
+  if [[ -n $filter ]]; then
+    shown=$(count_shown)
+    info="/ ${filter}"
+    if ((filter_edit)); then
+      info+="_"
+    fi
+    info+="${SEP}${shown} shown"
+    add_text plain "$info"
+  elif [[ -n $load_note ]]; then
+    add_text warn "$load_note"
+  else
+    info=$(counts_line)
+    add_text dim "$info"
+  fi
+  add_line "blank" "" ""
+}
+
+pos_text() {
+  local n first last
+  n=${#view_type[@]}
+  if ((n == 0)); then
+    printf ''
+    return
+  fi
+  first=$((scroll + 1))
+  last=$((scroll + WINDOW))
+  if ((last > n)); then
+    last=$n
+  fi
+  printf '%d-%d of %d' "$first" "$last" "$n"
+}
+
+keys_line() {
+  if ((filter_edit)); then
+    printf '%s' "type to filter    enter done    esc clear    arrows move"
+    return
+  fi
+  if [[ -n $filter ]]; then
+    printf '%s' "esc clears filter    space select    d delete    q quit"
+    return
+  fi
+  if ((unicode)); then
+    printf '%s' "space select    ↑↓ move    b projects    d delete    t trim    x expired    / find    q quit"
+  else
+    printf '%s' "space select    j/k move    b projects    d delete    t trim    x expired    / find    q quit"
+  fi
+}
+
+compose_footer() {
+  local sum pos line gapn gap keys color room
+  sum=$(summary_text)
+  pos=""
+  if [[ $mode == list ]]; then
+    pos=$(pos_text)
+  fi
+  if [[ -n $pos ]]; then
+    room=$((USABLE - ${#pos} - 2))
+    if ((room > 10 && ${#sum} <= room)); then
+      gapn=$((USABLE - ${#sum} - ${#pos}))
+      printf -v gap '%*s' "$gapn" ""
+      line="${sum}${gap}${pos}"
+    else
+      _fit "$sum" "$USABLE"
+      line=$FIT
+    fi
+  else
+    _fit "$sum" "$USABLE"
+    line=$FIT
+  fi
+  color=$line
+  if ((use_color)); then
+    if [[ -n $status_msg ]]; then
+      color="${C_YELLOW}${line}${C_RESET}"
+    elif ((SEL_COUNT > 0)); then
+      color="${C_BOLD}${line}${C_RESET}"
+    else
+      color="${C_DIM}${line}${C_RESET}"
+    fi
+  fi
+  add_line "summary" "$line" "$color"
+  keys=$(keys_line)
+  _fit "$keys" "$USABLE"
+  keys=$FIT
+  color=$keys
+  if ((use_color)); then
+    color="${C_DIM}${keys}${C_RESET}"
+  fi
+  add_line "keys" "$keys" "$color"
+}
+
+compose_empty() {
+  if ((fatal_load)); then
+    add_text error "Could not load this repository."
+    if [[ -n $art_error ]]; then
+      add_text plain "  $art_error"
+    fi
+    if [[ -n $cache_error ]]; then
+      add_text plain "  $cache_error"
+    fi
+    add_line "blank" "" ""
+    add_text dim "r retries    q quits"
+    return
+  fi
+  if [[ -n $filter ]]; then
+    add_text plain "No matches for \"${filter}\"."
+    add_text dim "esc clears the filter"
+    return
+  fi
+  if [[ -n $art_error || -n $cache_error ]]; then
+    add_text warn "Part of the list failed to load."
+    if [[ -n $art_error ]]; then
+      add_text plain "  $art_error"
+    fi
+    if [[ -n $cache_error ]]; then
+      add_text plain "  $cache_error"
+    fi
+    return
+  fi
+  add_text plain "Nothing to clean."
+  add_text dim "This repository has no Actions artifacts or caches."
+}
+
+trim_last_line() {
+  local last
+  if ((${#screen_lines[@]} == 0)); then
+    return
+  fi
+  last=$((${#screen_lines[@]} - 1))
+  unset "screen_lines[$last]"
+  unset "screen_kind[$last]"
+  unset "screen_color[$last]"
+}
+
+compose_list_body() {
+  local i row n
+  compose_header
+  n=${#view_type[@]}
+  if ((n == 0)); then
+    compose_empty
+  else
+    for ((i = 0; i < WINDOW; i++)); do
+      row=$((scroll + i))
+      if ((row >= n)); then
+        add_line "blank" "" ""
+      else
+        render_view_row "$row"
+      fi
+    done
+  fi
+  while ((${#screen_lines[@]} < HEADER_H + WINDOW)); do
+    add_line "blank" "" ""
+  done
+  while ((${#screen_lines[@]} > HEADER_H + WINDOW)); do
+    trim_last_line
+  done
+  add_rule
+  compose_footer
+}
+
+confirm_group_line() {
+  local g=$1 on=0 bytes=0 i start end nm sz line
+  start=${group_start[$g]}
+  end=$((start + group_len[$g]))
+  for ((i = start; i < end; i++)); do
+    if [[ ${item_dead[$i]} == 1 || ${item_on[$i]} != 1 ]]; then
+      continue
+    fi
+    on=$((on + 1))
+    bytes=$((bytes + ${item_size[$i]}))
+  done
+  if ((on == 0)); then
+    CONFIRM_HIT=0
+    return
+  fi
+  CONFIRM_HIT=1
+  nm=$(fit_print "${group_name[$g]}" 36)
+  sz=$(human_size "$bytes")
+  printf -v line '  %-36s  %4d   %s' "$nm" "$on" "$sz"
+  CONFIRM_LINE=$line
+  CONFIRM_KIND=${group_kind[$g]}
+}
+
+compose_confirm() {
+  local g shown=0 hidden_groups=0 max_groups last_kind="" line
+  if [[ $confirm_scope == projects ]]; then
+    compose_confirm_projects
+    return
+  fi
+  count_selected
+  if ((confirm_strict)); then
+    add_text error "Large delete from ${repo_nwo_full}"
+  else
+    add_text error "Delete from ${repo_nwo_full}"
+  fi
+  add_line "blank" "" ""
+  if ((dry_run)); then
+    add_text warn "Dry run: nothing will be deleted."
+  elif ((confirm_strict)); then
+    add_text plain "This permanently deletes ${SEL_COUNT} selected items ($(human_size "$SEL_BYTES"))."
+    add_text plain "Type the repository name to confirm. GitHub cannot undo it."
+  else
+    add_text plain "This permanently deletes the selection. GitHub cannot undo it."
+  fi
+  add_line "blank" "" ""
+  max_groups=$((ROWS - 16))
+  if ((max_groups < 3)); then
+    max_groups=3
+  fi
+  if ((${#art_groups[@]} > 0)); then
+    for g in "${art_groups[@]}"; do
+      confirm_group_line "$g"
+      if ((CONFIRM_HIT == 0)); then
+        continue
+      fi
+      if ((shown >= max_groups)); then
+        hidden_groups=$((hidden_groups + 1))
+        continue
+      fi
+      if [[ $CONFIRM_KIND != "$last_kind" ]]; then
+        add_text title "ARTIFACTS"
+        last_kind=$CONFIRM_KIND
+      fi
+      add_text plain "$CONFIRM_LINE"
+      shown=$((shown + 1))
+    done
+  fi
+  if ((${#cache_groups[@]} > 0)); then
+    for g in "${cache_groups[@]}"; do
+      confirm_group_line "$g"
+      if ((CONFIRM_HIT == 0)); then
+        continue
+      fi
+      if ((shown >= max_groups)); then
+        hidden_groups=$((hidden_groups + 1))
+        continue
+      fi
+      if [[ $CONFIRM_KIND != "$last_kind" ]]; then
+        add_text title "CACHES"
+        last_kind=$CONFIRM_KIND
+      fi
+      add_text plain "$CONFIRM_LINE"
+      shown=$((shown + 1))
+    done
+  fi
+  if ((hidden_groups > 0)); then
+    if ((unicode)); then
+      add_text dim "  … ${hidden_groups} more"
+    else
+      add_text dim "  ... ${hidden_groups} more"
+    fi
+  fi
+  add_line "blank" "" ""
+  printf -v line 'Total  %d   %s' "$SEL_COUNT" "$(human_size "$SEL_BYTES")"
+  add_text plain "$line"
+  add_line "blank" "" ""
+  if ((confirm_strict)); then
+    add_text plain "Type ${name} or ${repo_nwo_full}"
+    add_text plain "> ${confirm_buf}_"
+    add_text dim "enter confirms    esc cancels"
+  else
+    if ((dry_run)); then
+      add_text plain "y   finish the dry run"
+    else
+      add_text error "y   delete now"
+    fi
+    add_text dim "n   go back"
+  fi
+  if [[ -n $status_msg ]]; then
+    add_line "blank" "" ""
+    add_text warn "$status_msg"
+  fi
+}
+
+compose_result() {
+  local f shown=0 where
+  where=${RESULT_WHERE:-$repo_nwo_full}
+  if ((dry_run)); then
+    add_text warn "Dry run for ${where}"
+    add_line "blank" "" ""
+    add_text plain "No delete requests were sent."
+  elif ((RESULT_ABORT)); then
+    add_text warn "Stopped early on ${where}"
+    add_line "blank" "" ""
+    add_text plain "Some selected items were not deleted."
+  elif ((RESULT_FAILS > 0 && RESULT_ART + RESULT_CACHE == 0)); then
+    add_text error "Nothing deleted on ${where}"
+  else
+    add_text good "Deleted from ${where}"
+  fi
+  add_line "blank" "" ""
+  add_text plain "  ${RESULT_ART} $(plural_word "$RESULT_ART" artifact artifacts)"
+  add_text plain "  ${RESULT_CACHE} $(plural_word "$RESULT_CACHE" cache caches)"
+  add_text plain "  freed $(human_size "$RESULT_BYTES")"
+  if ((RESULT_FAILS > 0 && ${#fail_lines[@]} > 0)); then
+    add_line "blank" "" ""
+    add_text error "Failed"
+    for f in "${fail_lines[@]}"; do
+      if ((shown >= 8)); then
+        add_text dim "  ... $((RESULT_FAILS - shown)) more"
+        break
+      fi
+      add_text plain "  $f"
+      shown=$((shown + 1))
+    done
+  fi
+  add_line "blank" "" ""
+  add_text dim "Artifact quota usage refreshes every 6-12 hours."
+  add_text dim "q quits    any other key goes back"
+}
+
+compose_working() {
+  local width=24 filled=0 i marks=""
+  add_text title "Deleting ${WORK_INDEX} of ${WORK_TOTAL}"
+  add_line "blank" "" ""
+  add_text plain "$WORK_LABEL"
+  add_text dim "$WORK_DETAIL"
+  add_line "blank" "" ""
+  if ((WORK_TOTAL > 0)); then
+    filled=$((WORK_INDEX * width / WORK_TOTAL))
+  fi
+  if ((filled > width)); then
+    filled=$width
+  fi
+  for ((i = 0; i < filled; i++)); do
+    marks+="#"
+  done
+  for ((i = filled; i < width; i++)); do
+    marks+="-"
+  done
+  add_text plain "[${marks}]"
+  add_line "blank" "" ""
+  add_text plain "freed $(human_size "$WORK_FREED")    failed ${WORK_FAILS}"
+  if [[ -n $WORK_NOTE ]]; then
+    add_text warn "$WORK_NOTE"
+  fi
+  add_line "blank" "" ""
+  add_text dim "ctrl-c stops after the current request"
+}
+
+compose_prompt() {
+  add_text title "$prompt_title"
+  add_line "blank" "" ""
+  add_text plain "> ${prompt_buf}_"
+  add_line "blank" "" ""
+  if [[ $prompt_kind == add ]]; then
+    add_text dim "Type owner/repo. Enter adds it. Esc cancels."
+  elif [[ $prompt_kind == keep ]]; then
+    add_text dim "Enter applies. 0 selects every artifact. Esc cancels."
+    add_text dim "Newer copies of each name stay unchecked."
+  else
+    add_text dim "Numbers only. Enter applies. Esc cancels."
+    add_text dim "Matching artifacts are added to the current selection."
+  fi
+}
+
+compose_help() {
+  local line count=0 limit
+  add_text title "gh-sweep help"
+  add_line "blank" "" ""
+  limit=$((ROWS - 5))
+  if ((limit < 4)); then
+    limit=4
+  fi
+  local lines
+  lines=()
+  lines+=("Projects: space marks a repo for a full wipe, enter opens it.")
+  lines+=("d on the project list deletes everything marked.")
+  lines+=("b returns from a project to that list. + adds owner/repo.")
+  lines+=("")
+  lines+=("space      toggle the highlighted row")
+  lines+=("enter      toggle an item, or open and close a group")
+  lines+=("j/k        move        h/l fold        e/c fold all")
+  lines+=("a/n        select or clear what the filter shows")
+  lines+=("x          select expired artifacts (they still use quota)")
+  lines+=("o          select artifacts older than N days")
+  lines+=("t          keep the newest N of each name, select the rest")
+  lines+=("d          delete       / filter       r refresh")
+  lines+=("?          help         q quit")
+  lines+=("")
+  lines+=("A group checkbox selects every artifact of that name,")
+  lines+=("or every cache entry with that key.")
+  lines+=("Deletes run largest-first. Quota usage refreshes in 6-12 hours.")
+  for line in "${lines[@]}"; do
+    if ((count >= limit)); then
+      break
+    fi
+    if [[ -z $line ]]; then
+      add_line "blank" "" ""
+    else
+      add_text plain "$line"
+    fi
+    count=$((count + 1))
+  done
+  add_line "blank" "" ""
+  add_text dim "press a key to return     q quits"
+}
+
+pad_screen() {
+  while ((${#screen_lines[@]} < ROWS - 1)); do
+    add_line "blank" "" ""
+  done
+  while ((${#screen_lines[@]} > ROWS - 1)); do
+    trim_last_line
+  done
+}
+
+compose_screen() {
+  screen_reset
+  layout_metrics
+  case $mode in
+    projects) compose_projects ;;
+    confirm) compose_confirm ;;
+    result) compose_result ;;
+    help) compose_help ;;
+    prompt) compose_prompt ;;
+    working) compose_working ;;
+    *) compose_list_body ;;
+  esac
+  pad_screen
+  if [[ -n ${GH_SWEEP_DUMP:-} ]]; then
+    {
+      printf '%s\n' "---FRAME ${mode}---"
+      local i
+      for ((i = 0; i < ${#screen_lines[@]}; i++)); do
+        printf '%s\n' "${screen_lines[$i]}"
+      done
+    } >> "$GH_SWEEP_DUMP"
+  fi
+}
+
+draw() {
+  local n limit i line
+  compose_screen
+  if (( ! in_alt )); then
+    return 0
+  fi
+  printf '\033[H'
+  n=${#screen_lines[@]}
+  limit=$((ROWS - 1))
+  if ((n > limit)); then
+    n=$limit
+  fi
+  for ((i = 0; i < n; i++)); do
+    if ((use_color)); then
+      line=${screen_color[$i]}
+    else
+      line=${screen_lines[$i]}
+    fi
+    printf '\033[2K%s' "$line"
+    if ((i < n - 1)); then
+      printf '\n'
+    fi
+  done
+  printf '\033[J'
+}
+
+draw_loading() {
+  local msg=$1
+  if (( ! in_alt )); then
+    return 0
+  fi
+  printf '\033[H\033[J'
+  printf '\n  gh-sweep  %s\n\n  %s\n' "$repo_nwo_full" "$msg"
+  printf '  Large repositories can take a moment.\n'
+}
+
+# --- keyboard ------------------------------------------------------------
+
+read_paste() {
+  local acc="" b n=0
+  PASTE=""
+  while IFS= read -rsd '' -n1 b; do
+    acc+="$b"
+    n=$((n + 1))
+    if [[ $acc == *$'\e[201~' ]]; then
+      PASTE=${acc%$'\e[201~'}
+      return 0
+    fi
+    if ((n > 400)); then
+      PASTE=""
+      return 0
+    fi
+  done
+  return 1
+}
+
+read_key() {
+  local b c saved seq n
+  IFS= read -rsd '' -n1 b || return 1
+  if [[ $b != $'\e' ]]; then
+    KEY=$b
+    return 0
+  fi
+  saved=$(stty -g)
+  stty -echo -icanon min 0 time 1 || true
+  c=$(dd bs=1 count=1 2>/dev/null || true)
+  if [[ -z $c ]]; then
+    stty "$saved" 2>/dev/null || stty -echo -icanon min 1 time 0 || true
+    KEY=$'\e'
+    return 0
+  fi
+  seq=$c
+  if [[ $c == '[' || $c == 'O' ]]; then
+    n=0
+    while ((n < 8)); do
+      c=$(dd bs=1 count=1 2>/dev/null || true)
+      if [[ -z $c ]]; then
+        break
+      fi
+      seq+="$c"
+      n=$((n + 1))
+      case $c in
+        [A-Za-z~]) break ;;
+      esac
+    done
+  fi
+  stty "$saved" 2>/dev/null || stty -echo -icanon min 1 time 0 || true
+  KEY=$'\e'"$seq"
+  if [[ $KEY == $'\e[200~' ]]; then
+    read_paste || true
+  fi
+  return 0
+}
+
+is_printable() {
+  local k=$1
+  [[ ${#k} -eq 1 ]] || return 1
+  case $k in
+    [[:cntrl:]]) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+apply_filter_change() {
+  filter_l=$(printf '%s' "$filter" | tr '[:upper:]' '[:lower:]')
+  update_view_keep_cursor
+}
+
+filter_backspace() {
+  if [[ -z $filter ]]; then
+    return
+  fi
+  filter=${filter%?}
+  apply_filter_change
+}
+
+filter_delete_word() {
+  local s=$filter
+  while [[ $s == *" " ]]; do
+    s=${s% }
+  done
+  if [[ $s == *" "* ]]; then
+    s=${s% *}
+    while [[ $s == *" " ]]; do
+      s=${s% }
+    done
+  else
+    s=""
+  fi
+  filter=$s
+  apply_filter_change
+}
+
+append_paste_to_filter() {
+  local rest=$PASTE ch
+  while [[ -n $rest ]]; do
+    ch=${rest:0:1}
+    rest=${rest:1}
+    if is_printable "$ch"; then
+      filter+="$ch"
+    fi
+  done
+  apply_filter_change
+}
+
+move() {
+  local dir=$1 wrap=${2:-1} n i
+  n=${#view_type[@]}
+  if ((n <= 0)); then
+    return
+  fi
+  i=$cursor
+  if ((i < 0)); then
+    i=0
+  fi
+  if ((i >= n)); then
+    i=$((n - 1))
+  fi
+  i=$((i + dir))
+  if ((i < 0)); then
+    if ((wrap)); then
+      i=$((n - 1))
+    else
+      i=0
+    fi
+  elif ((i >= n)); then
+    if ((wrap)); then
+      i=0
+    else
+      i=$((n - 1))
+    fi
+  fi
+  cursor=$i
+  ensure_scroll
+}
+
+page_move() {
+  local dir=$1 win i before
+  layout_metrics
+  win=$WINDOW
+  if ((win < 1)); then
+    win=1
+  fi
+  for ((i = 0; i < win; i++)); do
+    before=$cursor
+    move "$dir" 0
+    if ((cursor == before)); then
+      break
+    fi
+  done
+}
+
+go_home() {
+  cursor=0
+  ensure_scroll
+}
+
+go_end() {
+  local n=${#view_type[@]}
+  if ((n > 0)); then
+    cursor=$((n - 1))
+  else
+    cursor=0
+  fi
+  ensure_scroll
+}
+
+current_group() {
+  local n=${#view_type[@]} t r
+  if ((n == 0 || cursor < 0 || cursor >= n)); then
+    return 1
+  fi
+  t=${view_type[$cursor]}
+  r=${view_ref[$cursor]}
+  case $t in
+    group) printf '%s' "$r" ;;
+    item) printf '%s' "${item_group[$r]}" ;;
+    *) return 1 ;;
+  esac
+}
+
+open_current() {
+  local g
+  if ! g=$(current_group); then
+    return
+  fi
+  group_open[$g]=1
+  update_view_keep_cursor
+}
+
+close_current() {
+  local g
+  if ! g=$(current_group); then
+    return
+  fi
+  group_open[$g]=0
+  build_view
+  place_cursor group "$g"
+  ensure_scroll
+}
+
+set_all_open() {
+  local v=$1 g
+  if ((${#group_kind[@]} == 0)); then
+    return
+  fi
+  for ((g = 0; g < ${#group_kind[@]}; g++)); do
+    group_open[$g]=$v
+  done
+  update_view_keep_cursor
+}
+
+enter_current() {
+  local n=${#view_type[@]} t r
+  if ((n == 0)); then
+    return
+  fi
+  t=${view_type[$cursor]}
+  r=${view_ref[$cursor]}
+  if [[ $t == group ]]; then
+    if [[ ${group_open[$r]} == 1 ]]; then
+      group_open[$r]=0
+    else
+      group_open[$r]=1
+    fi
+    update_view_keep_cursor
+  else
+    toggle_current
+  fi
+}
+
+begin_prompt() {
+  prompt_kind=older
+  prompt_from=list
+  mode=prompt
+  prompt_buf=""
+  prompt_title="Select artifacts older than how many days?"
+  status_msg=""
+}
+
+begin_keep_prompt() {
+  prompt_kind=keep
+  prompt_from=list
+  mode=prompt
+  prompt_buf=""
+  prompt_title="Keep how many of the newest artifacts of each name?"
+  status_msg=""
+}
+
+begin_add_prompt() {
+  prompt_kind=add
+  prompt_from=projects
+  mode=prompt
+  prompt_buf=""
+  prompt_title="Add a repository"
+  status_msg=""
+}
+
+begin_confirm() {
+  count_selected
+  if ((SEL_COUNT == 0)); then
+    status_msg="Nothing selected"
+    return
+  fi
+  confirm_scope=items
+  return_mode=list
+  mode=confirm
+  confirm_buf=""
+  status_msg=""
+  confirm_token=$name
+  if ((SEL_COUNT > STRICT_COUNT || SEL_BYTES >= STRICT_BYTES)); then
+    confirm_strict=1
+  else
+    confirm_strict=0
+  fi
+}
+
+handle_filter_edit_key() {
+  local key=$1
+  status_msg=""
+  case $key in
+    $'\r'|$'\n') filter_edit=0 ;;
+    $'\e')
+      filter=""
+      filter_edit=0
+      apply_filter_change
+      ;;
+    $'\x7f'|$'\b'|$'\e[3~') filter_backspace ;;
+    $'\x15')
+      filter=""
+      apply_filter_change
+      ;;
+    $'\x17') filter_delete_word ;;
+    $'\e[A'|$'\eOA') move -1 ;;
+    $'\e[B'|$'\eOB') move 1 ;;
+    $'\e[C'|$'\eOC') open_current ;;
+    $'\e[D'|$'\eOD') close_current ;;
+    $'\e[200~') append_paste_to_filter ;;
+    *)
+      if is_printable "$key"; then
+        filter+="$key"
+        apply_filter_change
+      fi
+      ;;
+  esac
+}
+
+handle_prompt_key() {
+  local key=$1 days
+  if [[ $prompt_kind == add ]]; then
+    case $key in
+      $'\r'|$'\n')
+        if add_project "$prompt_buf"; then
+          rebuild_proj_view
+          status_msg="Added ${repo_nwo_full}"
+        else
+          status_msg="Not a repository: ${prompt_buf}"
+        fi
+        mode=projects
+        ;;
+      $'\e'|q|Q)
+        mode=projects
+        ;;
+      $'\x7f'|$'\b')
+        prompt_buf=${prompt_buf%?}
+        ;;
+      *)
+        if is_printable "$key" && ((${#prompt_buf} < 200)); then
+          prompt_buf+="$key"
+        fi
+        ;;
+    esac
+    return
+  fi
+  case $key in
+    $'\r'|$'\n')
+      if [[ $prompt_buf =~ ^[0-9]+$ ]]; then
+        days=$((10#$prompt_buf))
+        mode=list
+        if [[ $prompt_kind == keep ]]; then
+          select_except_newest "$days"
+        else
+          select_older "$days"
+        fi
+      else
+        mode=list
+        status_msg="Not a number of days"
+      fi
+      ;;
+    $'\e'|q|Q)
+      mode=$prompt_from
+      ;;
+    $'\x7f'|$'\b')
+      prompt_buf=${prompt_buf%?}
+      ;;
+    [0-9])
+      if ((${#prompt_buf} < 5)); then
+        prompt_buf+="$key"
+      fi
+      ;;
+  esac
+}
+
+confirm_accepted() {
+  if [[ $confirm_buf == "$confirm_token" ]]; then
+    return 0
+  fi
+  if [[ $confirm_scope == items && $confirm_buf == "$repo_nwo_full" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+run_confirmed_delete() {
+  if [[ $confirm_scope == projects ]]; then
+    perform_project_wipes
+  else
+    perform_deletes
+  fi
+}
+
+handle_confirm_key() {
+  local key=$1
+  status_msg=""
+  if ((confirm_strict)); then
+    case $key in
+      $'\r'|$'\n')
+        if confirm_accepted; then
+          run_confirmed_delete
+        else
+          status_msg="Type ${confirm_token} to confirm"
+        fi
+        ;;
+      $'\e'|q|Q)
+        mode=$return_mode
+        ;;
+      $'\x7f'|$'\b')
+        confirm_buf=${confirm_buf%?}
+        ;;
+      *)
+        if is_printable "$key" && ((${#confirm_buf} < 200)); then
+          confirm_buf+="$key"
+        fi
+        ;;
+    esac
+    return
+  fi
+  case $key in
+    y|Y) run_confirmed_delete ;;
+    n|N|$'\e'|q|Q|$'\r'|$'\n') mode=$return_mode ;;
+  esac
+}
+
+handle_list_key() {
+  local key=$1
+  status_msg=""
+  case $key in
+    $'\e[A'|$'\eOA'|k) move -1 ;;
+    $'\e[B'|$'\eOB'|j) move 1 ;;
+    $'\e[5~'|$'\x15'|K) page_move -1 ;;
+    $'\e[6~'|$'\x04'|J) page_move 1 ;;
+    $'\e[H'|$'\e[1~'|$'\eOH'|g) go_home ;;
+    $'\e[F'|$'\e[4~'|$'\eOF'|G) go_end ;;
+    $'\e[C'|$'\eOC'|l) open_current ;;
+    $'\e[D'|$'\eOD'|h) close_current ;;
+    ' ') toggle_current ;;
+    $'\r'|$'\n') enter_current ;;
+    e) set_all_open 1 ;;
+    c) set_all_open 0 ;;
+    a) select_visible 1 "" ;;
+    A) select_visible 1 artifact ;;
+    C) select_visible 1 cache ;;
+    n) select_visible 0 "" ;;
+    N) clear_all_selection ;;
+    x) select_expired ;;
+    o) begin_prompt ;;
+    t) begin_keep_prompt ;;
+    d) begin_confirm ;;
+    b) back_to_projects ;;
+    /) filter_edit=1 ;;
+    r) refresh_data ;;
+    '?'|$'\eOP'|$'\e[11~')
+      help_from=list
+      mode=help
+      ;;
+    q|Q) QUIT=1 ;;
+    $'\x7f'|$'\b')
+      if [[ -n $filter ]]; then
+        filter_edit=1
+        filter_backspace
+      fi
+      ;;
+    $'\e')
+      if [[ -n $filter ]]; then
+        filter=""
+        filter_edit=0
+        apply_filter_change
+      fi
+      ;;
+    $'\e[200~') ;;
+  esac
+}
+
+handle_key() {
+  local key=$KEY
+  if [[ -n ${GH_SWEEP_LOG:-} ]]; then
+    printf 'KEY %q mode=%s\n' "$key" "$mode" >> "$GH_SWEEP_LOG"
+  fi
+  case $mode in
+    help)
+      if [[ $key == q || $key == Q ]]; then
+        QUIT=1
+      else
+        mode=$help_from
+      fi
+      return
+      ;;
+    result)
+      if [[ $key == q || $key == Q ]]; then
+        QUIT=1
+      fi
+      mode=$return_mode
+      return
+      ;;
+    prompt)
+      handle_prompt_key "$key"
+      return
+      ;;
+    confirm)
+      handle_confirm_key "$key"
+      return
+      ;;
+    working)
+      return
+      ;;
+    projects)
+      if ((proj_filter_edit)); then
+        handle_proj_filter_key "$key"
+      else
+        handle_project_key "$key"
+      fi
+      return
+      ;;
+  esac
+  if ((filter_edit)); then
+    handle_filter_edit_key "$key"
+    return
+  fi
+  handle_list_key "$key"
+}
+
+# --- GitHub --------------------------------------------------------------
+
+artifact_jq() {
+  cat <<'EOF'
+def clean:
+  if type == "string" then
+    gsub("\t"; " ") | gsub("\r"; " ") | gsub("\n"; " ") | gsub("\u001f"; " ")
+  else
+    .
+  end;
+"T \(.total_count | tostring)",
+(
+  .artifacts[]?
+  | [
+      (.id | tostring),
+      ((.name // "") | clean),
+      ((.size_in_bytes // 0) | tostring),
+      (.created_at // ""),
+      (if .expired then "1" else "0" end),
+      (((.workflow_run // {}) | .head_branch // "") | clean),
+      (((.workflow_run // {}) | .id // 0) | tostring)
+    ]
+  | join("\u001f")
+)
+EOF
+}
+
+cache_jq() {
+  cat <<'EOF'
+def clean:
+  if type == "string" then
+    gsub("\t"; " ") | gsub("\r"; " ") | gsub("\n"; " ") | gsub("\u001f"; " ")
+  else
+    .
+  end;
+.[]?
+| [
+    (.id | tostring),
+    ((.key // "") | clean),
+    ((.sizeInBytes // 0) | tostring),
+    (.createdAt // ""),
+    ((.ref // "") | clean),
+    (.lastAccessedAt // "")
+  ]
+| join("\u001f")
+EOF
+}
+
+read_err() {
+  local s=""
+  if [[ -s $tmpdir/fetch.err ]]; then
+    IFS= read -r s < "$tmpdir/fetch.err" || true
+    s=${s#gh: }
+    s=$(strip_controls "$s")
+  fi
+  if [[ -z $s ]]; then
+    s="request failed"
+  fi
+  printf '%s' "$s"
+}
+
+fetch_text() {
+  local which=$1 errf="$tmpdir/fetch.err" out
+  : > "$errf"
+  if [[ $which == art ]]; then
+    if [[ -n $api_hostname ]]; then
+      if ! out=$(gh api --hostname "$api_hostname" --paginate \
+        -H "Accept: application/vnd.github+json" \
+        "repos/${owner}/${name}/actions/artifacts?per_page=100" \
+        --jq "$(artifact_jq)" </dev/null 2>"$errf"); then
+        return 1
+      fi
+    else
+      if ! out=$(gh api --paginate \
+        -H "Accept: application/vnd.github+json" \
+        "repos/${owner}/${name}/actions/artifacts?per_page=100" \
+        --jq "$(artifact_jq)" </dev/null 2>"$errf"); then
+        return 1
+      fi
+    fi
+  else
+    if ! out=$(gh cache list -R "$repo_nwo_full" --limit "$CACHE_CAP" \
+      --sort size_in_bytes --order desc \
+      --json id,key,ref,sizeInBytes,createdAt,lastAccessedAt \
+      --jq "$(cache_jq)" </dev/null 2>"$errf"); then
+      return 1
+    fi
+  fi
+  FETCH_OUT=$out
+  return 0
+}
+
+first_load() {
+  local a_ok=1 c_ok=1 a_out="" c_out="" a_err="" c_err="" any=0
+  fatal_load=0
+  art_error=""
+  cache_error=""
+  if ((want_art)); then
+    draw_loading "Fetching artifacts…"
+    if fetch_text art; then
+      a_out=$FETCH_OUT
+      any=1
+    else
+      a_ok=0
+      a_err=$(read_err)
+    fi
+  fi
+  if ((want_cache)); then
+    draw_loading "Fetching caches…"
+    if fetch_text cache; then
+      c_out=$FETCH_OUT
+      any=1
+    else
+      c_ok=0
+      c_err=$(read_err)
+    fi
+  fi
+  if ((any == 0)); then
+    fatal_load=1
+    art_error=${a_err:-could not list artifacts}
+    cache_error=${c_err:-could not list caches}
+    if (( ! want_art )); then
+      art_error=""
+    fi
+    if (( ! want_cache )); then
+      cache_error=""
+    fi
+    return 1
+  fi
+  ART_RAW=$a_out
+  CACHE_RAW=$c_out
+  art_error=""
+  cache_error=""
+  if ((want_art && a_ok == 0)); then
+    art_error=${a_err:-could not list artifacts}
+  fi
+  if ((want_cache && c_ok == 0)); then
+    cache_error=${c_err:-could not list caches}
+  fi
+  apply_streams
+  return 0
+}
+
+save_selection() {
+  local i
+  saved_sel=()
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_on[$i]} == 1 && ${item_dead[$i]} != 1 ]]; then
+      saved_sel+=("${item_kind[$i]}:${item_id[$i]}")
+    fi
+  done
+}
+
+restore_selection() {
+  local i k s
+  if ((${#saved_sel[@]} == 0)); then
+    return
+  fi
+  for ((i = 0; i < n_items; i++)); do
+    k="${item_kind[$i]}:${item_id[$i]}"
+    for s in "${saved_sel[@]}"; do
+      if [[ $s == "$k" ]]; then
+        item_on[$i]=1
+        break
+      fi
+    done
+  done
+}
+
+save_open() {
+  local g
+  saved_open=()
+  if ((${#group_kind[@]} == 0)); then
+    return
+  fi
+  for ((g = 0; g < ${#group_kind[@]}; g++)); do
+    if [[ ${group_open[$g]} == 1 ]]; then
+      saved_open+=("${group_kind[$g]}:${group_name[$g]}")
+    fi
+  done
+}
+
+restore_open() {
+  local g k s
+  if ((${#saved_open[@]} == 0 || ${#group_kind[@]} == 0)); then
+    return
+  fi
+  for ((g = 0; g < ${#group_kind[@]}; g++)); do
+    k="${group_kind[$g]}:${group_name[$g]}"
+    for s in "${saved_open[@]}"; do
+      if [[ $s == "$k" ]]; then
+        group_open[$g]=1
+        break
+      fi
+    done
+  done
+}
+
+save_anchor() {
+  local n=${#view_type[@]} t r
+  anchor_kind=""
+  anchor_id=""
+  anchor_group=""
+  if ((n == 0 || cursor < 0 || cursor >= n)); then
+    return
+  fi
+  t=${view_type[$cursor]}
+  r=${view_ref[$cursor]}
+  case $t in
+    section) anchor_kind="section:${r}" ;;
+    group)
+      anchor_kind="group"
+      anchor_group="${group_kind[$r]}:${group_name[$r]}"
+      ;;
+    item)
+      anchor_kind="item"
+      anchor_id="${item_kind[$r]}:${item_id[$r]}"
+      ;;
+  esac
+}
+
+restore_anchor() {
+  local i
+  case $anchor_kind in
+    section:*)
+      place_cursor section "${anchor_kind#section:}"
+      ;;
+    group)
+      if ((${#group_kind[@]} > 0)); then
+        for ((i = 0; i < ${#group_kind[@]}; i++)); do
+          if [[ ${group_kind[$i]}:${group_name[$i]} == "$anchor_group" ]]; then
+            place_cursor group "$i"
+            ensure_scroll
+            return
+          fi
+        done
+      fi
+      place_cursor "" ""
+      ;;
+    item)
+      for ((i = 0; i < n_items; i++)); do
+        if [[ ${item_kind[$i]}:${item_id[$i]} == "$anchor_id" ]]; then
+          place_cursor item "$i"
+          ensure_scroll
+          return
+        fi
+      done
+      place_cursor "" ""
+      ;;
+    *)
+      place_cursor "" ""
+      ;;
+  esac
+  ensure_scroll
+}
+
+refresh_data() {
+  local na="" nc=""
+  save_anchor
+  save_selection
+  save_open
+  draw_loading "Refreshing…"
+  if ((want_art)); then
+    if ! fetch_text art; then
+      status_msg="Refresh failed: $(read_err)"
+      return
+    fi
+    na=$FETCH_OUT
+  fi
+  if ((want_cache)); then
+    if ! fetch_text cache; then
+      status_msg="Refresh failed: $(read_err)"
+      return
+    fi
+    nc=$FETCH_OUT
+  fi
+  ART_RAW=$na
+  CACHE_RAW=$nc
+  art_error=""
+  cache_error=""
+  fatal_load=0
+  apply_streams
+  restore_selection
+  restore_open
+  build_view
+  restore_anchor
+  ensure_scroll
+  if ((open_proj >= 0)); then
+    printf '%s\n' "$ART_RAW" > "$(proj_art_file "$open_proj")"
+    printf '%s\n' "$CACHE_RAW" > "$(proj_cache_file "$open_proj")"
+    : > "$(proj_skip_file "$open_proj")"
+    SKIP_SET="|"
+    record_project_stats "$open_proj"
+  fi
+  status_msg="Refreshed"
+}
+
+rate_limited() {
+  local s
+  s=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  case $s in
+    *rate\ limit*|*"http 429"*|*"http 502"*|*"http 503"*|*"http 504"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+sleep_retry() {
+  local t=$1
+  if [[ -n ${RETRY_SLEEP+x} ]]; then
+    t=$RETRY_SLEEP
+  fi
+  if [[ $t == 0 || $t == 0.* ]]; then
+    return 0
+  fi
+  sleep "$t" || true
+}
+
+run_gh() {
+  local attempt=0 waitn=2 out
+  GH_OUT=""
+  while true; do
+    if ((ABORT)); then
+      GH_OUT="stopped"
+      return 1
+    fi
+    if out=$("$@" </dev/null 2>&1); then
+      GH_OUT=$out
+      return 0
+    fi
+    GH_OUT=$out
+    if ((ABORT)); then
+      return 1
+    fi
+    if rate_limited "$out" && ((attempt < 5)); then
+      attempt=$((attempt + 1))
+      WORK_NOTE="Rate limited, waiting ${waitn}s"
+      draw || true
+      sleep_retry "$waitn" || true
+      if ((waitn < 16)); then
+        waitn=$((waitn * 2))
+      fi
+      continue
+    fi
+    return 1
+  done
+}
+
+clean_err() {
+  local s=$1
+  s=${s#gh: }
+  s=${s%%$'\n'*}
+  s=$(strip_controls "$s")
+  if [[ -z $s ]]; then
+    s="request failed"
+  fi
+  fit_print "$s" 48
+}
+
+delete_artifact() {
+  local id=$1
+  if ((dry_run)); then
+    GH_OUT=""
+    return 0
+  fi
+  if [[ ! $id =~ ^[0-9]+$ ]]; then
+    GH_OUT="bad artifact id"
+    return 1
+  fi
+  if [[ -n $api_hostname ]]; then
+    run_gh gh api --hostname "$api_hostname" -X DELETE \
+      "repos/${owner}/${name}/actions/artifacts/${id}"
+  else
+    run_gh gh api -X DELETE \
+      "repos/${owner}/${name}/actions/artifacts/${id}"
+  fi
+}
+
+delete_cache() {
+  local id=$1
+  if ((dry_run)); then
+    GH_OUT=""
+    return 0
+  fi
+  if [[ ! $id =~ ^[0-9]+$ ]]; then
+    GH_OUT="bad cache id"
+    return 1
+  fi
+  run_gh gh cache delete -R "$repo_nwo_full" "$id"
+}
+
+sort_work_by_size() {
+  local idx line size id
+  local sorted
+  sorted=()
+  if ((${#work_sel[@]} == 0)); then
+    return
+  fi
+  : > "$tmpdir/wsort"
+  for idx in "${work_sel[@]}"; do
+    printf '%s\t%s\n' "${item_size[$idx]}" "$idx" >> "$tmpdir/wsort"
+  done
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line ]] && continue
+    IFS=$'\t' read -r size id <<< "$line"
+    [[ -n ${id:-} ]] || continue
+    sorted+=("$id")
+  done < <(LC_ALL=C sort -t $'\t' -k1,1nr -k2,2n "$tmpdir/wsort")
+  if ((${#sorted[@]} > 0)); then
+    work_sel=("${sorted[@]}")
+  fi
+}
+
+note_session_repo() {
+  case ",${session_repo_list}," in
+    *",${repo_nwo_full},"*) ;;
+    *) session_repo_list+="${session_repo_list:+, }${repo_nwo_full}" ;;
+  esac
+}
+
+remember_deleted() {
+  local kind=$1 id=$2 key
+  if ((open_proj < 0)); then
+    return
+  fi
+  if [[ $kind == artifact ]]; then
+    key="a:${id}"
+  else
+    key="c:${id}"
+  fi
+  case $SKIP_SET in
+    *"|${key}|"*) return ;;
+  esac
+  printf '%s\n' "$key" >> "$(proj_skip_file "$open_proj")"
+  SKIP_SET+="${key}|"
+}
+
+# Delete whatever is checked in the current model, largest first.
+# Adds to RESULT_* and session counters. Sets DELETED_N to how many
+# requests were attempted. Returns 1 when nothing is checked.
+delete_current_selection() {
+  local base=${1:-0}
+  local i idx n=0 total ok err
+  work_sel=()
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_dead[$i]} != 1 && ${item_on[$i]} == 1 ]]; then
+      work_sel+=("$i")
+    fi
+  done
+  total=${#work_sel[@]}
+  DELETED_N=0
+  if ((total == 0)); then
+    return 1
+  fi
+  sort_work_by_size
+  if ((GRAND_TOTAL <= 0)); then
+    GRAND_TOTAL=$total
+  fi
+  mode=working
+  for idx in "${work_sel[@]}"; do
+    if ((ABORT)); then
+      break
+    fi
+    n=$((n + 1))
+    DELETED_N=$n
+    WORK_INDEX=$((base + n))
+    WORK_TOTAL=$GRAND_TOTAL
+    WORK_LABEL="${repo_nwo_full}  ${item_name[$idx]}"
+    WORK_DETAIL="${item_kind[$idx]} #${item_id[$idx]}"
+    WORK_FREED=$RESULT_BYTES
+    WORK_FAILS=$RESULT_FAILS
+    WORK_NOTE=""
+    draw || true
+    ok=0
+    if [[ ${item_kind[$idx]} == artifact ]]; then
+      if delete_artifact "${item_id[$idx]}"; then
+        ok=1
+      fi
+    else
+      if delete_cache "${item_id[$idx]}"; then
+        ok=1
+      fi
+    fi
+    if ((ABORT && ok == 0)); then
+      break
+    fi
+    if ((ok)); then
+      remember_deleted "${item_kind[$idx]}" "${item_id[$idx]}"
+      item_dead[$idx]=1
+      item_on[$idx]=0
+      RESULT_BYTES=$((RESULT_BYTES + ${item_size[$idx]}))
+      if [[ ${item_kind[$idx]} == artifact ]]; then
+        RESULT_ART=$((RESULT_ART + 1))
+        session_art=$((session_art + 1))
+      else
+        RESULT_CACHE=$((RESULT_CACHE + 1))
+        session_cache=$((session_cache + 1))
+      fi
+      session_bytes=$((session_bytes + ${item_size[$idx]}))
+      note_session_repo
+    else
+      RESULT_FAILS=$((RESULT_FAILS + 1))
+      err=$(clean_err "$GH_OUT")
+      fail_lines+=("$(printf '%s #%s  %s  %s' "${item_kind[$idx]}" "${item_id[$idx]}" "$(fit_print "${item_name[$idx]}" 24)" "$err")")
+    fi
+  done
+  return 0
+}
+
+perform_deletes() {
+  RESULT_ART=0
+  RESULT_CACHE=0
+  RESULT_BYTES=0
+  RESULT_FAILS=0
+  RESULT_ABORT=0
+  fail_lines=()
+  GRAND_TOTAL=0
+  ABORT=0
+  trap 'ABORT=1' INT
+  if ! delete_current_selection 0; then
+    trap 'exit 130' INT
+    mode=$return_mode
+    status_msg="Nothing selected"
+    return
+  fi
+  trap 'exit 130' INT
+  RESULT_ABORT=$ABORT
+  RESULT_WHERE=$repo_nwo_full
+  build_view
+  place_cursor "" ""
+  ensure_scroll
+  if ((open_proj >= 0)); then
+    record_project_stats "$open_proj"
+  fi
+  mode=result
+  draw || true
+}
+
+# --- projects ------------------------------------------------------------
+
+PROJ_LIST_CAP=200
+
+proj_art_file() { printf '%s/p%s.art' "$tmpdir" "$1"; }
+proj_cache_file() { printf '%s/p%s.cache' "$tmpdir" "$1"; }
+proj_skip_file() { printf '%s/p%s.skip' "$tmpdir" "$1"; }
+
+reset_projects() {
+  n_proj=0
+  proj_owner=()
+  proj_name=()
+  proj_host=()
+  proj_api=()
+  proj_nwo=()
+  proj_on=()
+  proj_scanned=()
+  proj_art_n=()
+  proj_art_bytes=()
+  proj_exp_n=()
+  proj_exp_bytes=()
+  proj_cache_n=()
+  proj_cache_bytes=()
+  proj_error=()
+  proj_view=()
+  proj_cursor=0
+  proj_scroll=0
+}
+
+add_project() {
+  local spec=$1 i
+  if ! parse_repo "$spec"; then
+    return 1
+  fi
+  for ((i = 0; i < n_proj; i++)); do
+    if [[ ${proj_nwo[$i]} == "$repo_nwo_full" ]]; then
+      return 0
+    fi
+  done
+  proj_owner+=("$owner")
+  proj_name+=("$name")
+  proj_host+=("$host")
+  proj_api+=("$api_hostname")
+  proj_nwo+=("$repo_nwo_full")
+  proj_on+=(0)
+  proj_scanned+=(0)
+  proj_art_n+=(0)
+  proj_art_bytes+=(0)
+  proj_exp_n+=(0)
+  proj_exp_bytes+=(0)
+  proj_cache_n+=(0)
+  proj_cache_bytes+=(0)
+  proj_error+=("")
+  n_proj=$((n_proj + 1))
+  : > "$(proj_art_file "$((n_proj - 1))")"
+  : > "$(proj_cache_file "$((n_proj - 1))")"
+  : > "$(proj_skip_file "$((n_proj - 1))")"
+  return 0
+}
+
+bind_project() {
+  local p=$1
+  owner=${proj_owner[$p]}
+  name=${proj_name[$p]}
+  host=${proj_host[$p]}
+  api_hostname=${proj_api[$p]}
+  repo_nwo_full=${proj_nwo[$p]}
+  repo=$repo_nwo_full
+  open_proj=$p
+}
+
+load_skip_set() {
+  local f line
+  SKIP_SET="|"
+  f=$(proj_skip_file "$1")
+  [[ -f $f ]] || return 0
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line ]] && continue
+    SKIP_SET+="${line}|"
+  done < "$f"
+}
+
+record_project_stats() {
+  local p=$1 i an=0 ab=0 en=0 eb=0 cn=0 cb=0
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_dead[$i]} == 1 ]]; then
+      continue
+    fi
+    if [[ ${item_kind[$i]} == artifact ]]; then
+      an=$((an + 1))
+      ab=$((ab + ${item_size[$i]}))
+      if [[ ${item_expired[$i]} == 1 ]]; then
+        en=$((en + 1))
+        eb=$((eb + ${item_size[$i]}))
+      fi
+    else
+      cn=$((cn + 1))
+      cb=$((cb + ${item_size[$i]}))
+    fi
+  done
+  proj_art_n[$p]=$an
+  proj_art_bytes[$p]=$ab
+  proj_exp_n[$p]=$en
+  proj_exp_bytes[$p]=$eb
+  proj_cache_n[$p]=$cn
+  proj_cache_bytes[$p]=$cb
+  proj_scanned[$p]=1
+  proj_error[$p]=""
+}
+
+load_project_model() {
+  local p=$1
+  bind_project "$p"
+  load_skip_set "$p"
+  ART_RAW=""
+  CACHE_RAW=""
+  if [[ -f $(proj_art_file "$p") ]]; then
+    ART_RAW=$(cat "$(proj_art_file "$p")")
+  fi
+  if [[ -f $(proj_cache_file "$p") ]]; then
+    CACHE_RAW=$(cat "$(proj_cache_file "$p")")
+  fi
+  art_error=""
+  cache_error=""
+  first_build=1
+  apply_streams
+  open_proj=$p
+}
+
+scan_project() {
+  local p=$1 a_ok=1 c_ok=1 a_err="" c_err=""
+  bind_project "$p"
+  : > "$(proj_skip_file "$p")"
+  SKIP_SET="|"
+  draw_loading "Reading ${proj_nwo[$p]}…"
+  if ((want_art)); then
+    if fetch_text art; then
+      printf '%s\n' "$FETCH_OUT" > "$(proj_art_file "$p")"
+    else
+      a_ok=0
+      a_err=$(read_err)
+    fi
+  else
+    : > "$(proj_art_file "$p")"
+  fi
+  if ((want_cache)); then
+    if fetch_text cache; then
+      printf '%s\n' "$FETCH_OUT" > "$(proj_cache_file "$p")"
+    else
+      c_ok=0
+      c_err=$(read_err)
+    fi
+  else
+    : > "$(proj_cache_file "$p")"
+  fi
+  if ((want_art && a_ok == 0 && want_cache && c_ok == 0)); then
+    proj_error[$p]=${a_err:-$c_err}
+    proj_scanned[$p]=0
+    return 1
+  fi
+  if ((want_art && ! want_cache && a_ok == 0)); then
+    proj_error[$p]=${a_err:-could not list artifacts}
+    proj_scanned[$p]=0
+    return 1
+  fi
+  if ((want_cache && ! want_art && c_ok == 0)); then
+    proj_error[$p]=${c_err:-could not list caches}
+    proj_scanned[$p]=0
+    return 1
+  fi
+  if ((a_ok == 0)); then
+    : > "$(proj_art_file "$p")"
+  fi
+  if ((c_ok == 0)); then
+    : > "$(proj_cache_file "$p")"
+  fi
+  load_project_model "$p"
+  record_project_stats "$p"
+  if ((a_ok == 0)); then
+    proj_error[$p]=${a_err:-could not list artifacts}
+  elif ((c_ok == 0)); then
+    proj_error[$p]=${c_err:-could not list caches}
+  fi
+  return 0
+}
+
+open_project_items() {
+  local p=$1
+  if [[ ${proj_scanned[$p]} != 1 ]]; then
+    if ! scan_project "$p"; then
+      status_msg="Could not read ${proj_nwo[$p]}: ${proj_error[$p]}"
+      return 1
+    fi
+  else
+    load_project_model "$p"
+  fi
+  if [[ -n $initial_filter && -z $filter ]]; then
+    filter=$initial_filter
+    filter_l=$(printf '%s' "$filter" | tr '[:upper:]' '[:lower:]')
+  fi
+  build_view
+  place_cursor "" ""
+  ensure_scroll
+  mode=list
+  return_mode=list
+  filter_edit=0
+  return 0
+}
+
+back_to_projects() {
+  if ((open_proj >= 0 && n_items >= 0)); then
+    record_project_stats "$open_proj"
+  fi
+  mode=projects
+  return_mode=projects
+  filter_edit=0
+  status_msg=""
+  rebuild_proj_view
+}
+
+load_repo_names() {
+  local who=$1 out err line n_before
+  err=$(mktemp "${tmpdir}/repolist.XXXXXX")
+  n_before=$n_proj
+  if [[ -n $who ]]; then
+    if ! out=$(gh repo list "$who" --limit "$PROJ_LIST_CAP" --json nameWithOwner --jq '.[].nameWithOwner' </dev/null 2>"$err"); then
+      proj_note=$(head -n 1 "$err" 2>/dev/null || true)
+      proj_note=${proj_note#gh: }
+      [[ -n $proj_note ]] || proj_note="Could not list repositories for ${who}."
+      rm -f "$err"
+      return 1
+    fi
+  else
+    if ! out=$(gh repo list --limit "$PROJ_LIST_CAP" --json nameWithOwner --jq '.[].nameWithOwner' </dev/null 2>"$err"); then
+      proj_note=$(head -n 1 "$err" 2>/dev/null || true)
+      proj_note=${proj_note#gh: }
+      [[ -n $proj_note ]] || proj_note="Could not list your repositories."
+      rm -f "$err"
+      return 1
+    fi
+  fi
+  rm -f "$err"
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line ]] && continue
+    add_project "$line" || true
+  done <<< "$out"
+  if ((n_proj - n_before >= PROJ_LIST_CAP)); then
+    proj_note="Showing the first ${PROJ_LIST_CAP} repositories."
+  fi
+  return 0
+}
+
+collect_projects() {
+  local spec err info nwo url h
+  reset_projects
+  proj_note=""
+  if ((${#cli_repos[@]} > 0)); then
+    for spec in "${cli_repos[@]}"; do
+      if ! add_project "$spec"; then
+        die "not a repository name: ${spec}"
+      fi
+    done
+    return 0
+  fi
+  if [[ -n $org_name ]]; then
+    printf 'Listing %s…\n' "$org_name" >&2
+    load_repo_names "$org_name" || true
+    return 0
+  fi
+  if [[ -n $user_name ]]; then
+    printf 'Listing %s…\n' "$user_name" >&2
+    load_repo_names "$user_name" || true
+    return 0
+  fi
+  if ((list_mine)); then
+    printf 'Listing your repositories…\n' >&2
+    load_repo_names "" || true
+    return 0
+  fi
+  if [[ -n ${GH_REPO:-} ]]; then
+    if ! add_project "$GH_REPO"; then
+      die "not a repository name: ${GH_REPO}"
+    fi
+    return 0
+  fi
+  err=$(mktemp "${tmpdir}/repo.XXXXXX")
+  if info=$(gh repo view --json nameWithOwner,url -q '[.nameWithOwner, .url] | @tsv' </dev/null 2>"$err"); then
+    rm -f "$err"
+    nwo=${info%%$'\t'*}
+    url=${info#*$'\t'}
+    repo=$nwo
+    if [[ $url =~ ^https?://([^/]+)/ ]]; then
+      h=${BASH_REMATCH[1]}
+      if [[ $h != github.com && $h != www.github.com && $h != api.github.com ]]; then
+        repo="${h}/${nwo}"
+      fi
+    fi
+    add_project "$repo" || true
+    return 0
+  fi
+  rm -f "$err"
+  printf 'Listing your repositories…\n' >&2
+  load_repo_names "" || true
+  return 0
+}
+
+rebuild_proj_view() {
+  local i needle hay
+  proj_view=()
+  needle=$(printf '%s' "$proj_filter" | tr '[:upper:]' '[:lower:]')
+  for ((i = 0; i < n_proj; i++)); do
+    if [[ -z $needle ]]; then
+      proj_view+=("$i")
+      continue
+    fi
+    hay=$(printf '%s' "${proj_nwo[$i]}" | tr '[:upper:]' '[:lower:]')
+    case $hay in
+      *"$needle"*) proj_view+=("$i") ;;
+    esac
+  done
+  if ((${#proj_view[@]} == 0)); then
+    proj_cursor=0
+    proj_scroll=0
+    return
+  fi
+  if ((proj_cursor >= ${#proj_view[@]})); then
+    proj_cursor=$((${#proj_view[@]} - 1))
+  fi
+  if ((proj_cursor < 0)); then
+    proj_cursor=0
+  fi
+}
+
+proj_window_size() {
+  PROJ_WIN=$((ROWS - 1 - 6))
+  if ((PROJ_WIN < 1)); then
+    PROJ_WIN=1
+  fi
+}
+
+ensure_proj_scroll() {
+  local n max
+  term_size
+  proj_window_size
+  n=${#proj_view[@]}
+  if ((n == 0)); then
+    proj_scroll=0
+    return
+  fi
+  if ((proj_cursor < 0)); then
+    proj_cursor=0
+  fi
+  if ((proj_cursor >= n)); then
+    proj_cursor=$((n - 1))
+  fi
+  if ((proj_cursor < proj_scroll)); then
+    proj_scroll=$proj_cursor
+  fi
+  if ((proj_cursor >= proj_scroll + PROJ_WIN)); then
+    proj_scroll=$((proj_cursor - PROJ_WIN + 1))
+  fi
+  max=$((n - PROJ_WIN))
+  if ((max < 0)); then
+    max=0
+  fi
+  if ((proj_scroll > max)); then
+    proj_scroll=$max
+  fi
+  if ((proj_scroll < 0)); then
+    proj_scroll=0
+  fi
+}
+
+proj_move() {
+  local dir=$1 n i
+  n=${#proj_view[@]}
+  if ((n <= 0)); then
+    return
+  fi
+  i=$((proj_cursor + dir))
+  if ((i < 0)); then
+    i=$((n - 1))
+  elif ((i >= n)); then
+    i=0
+  fi
+  proj_cursor=$i
+  ensure_proj_scroll
+}
+
+project_right() {
+  local p=$1 s
+  if [[ ${proj_scanned[$p]} != 1 ]]; then
+    if [[ -n ${proj_error[$p]} ]]; then
+      printf 'unreadable'
+    else
+      printf 'not scanned'
+    fi
+    return
+  fi
+  s=$(printf '%d %s%s%s' \
+    "${proj_art_n[$p]}" \
+    "$(plural_word "${proj_art_n[$p]}" artifact artifacts)" \
+    "$SEP" \
+    "$(human_size "${proj_art_bytes[$p]}")")
+  if ((want_cache)); then
+    s+=$(printf '%s%d %s%s%s' \
+      "$SEP" \
+      "${proj_cache_n[$p]}" \
+      "$(plural_word "${proj_cache_n[$p]}" cache caches)" \
+      "$SEP" \
+      "$(human_size "${proj_cache_bytes[$p]}")")
+  fi
+  if ((proj_exp_n[$p] > 0)); then
+    s+=$(printf '%s%s expired' "$SEP" "$(human_size "${proj_exp_bytes[$p]}")")
+  fi
+  printf '%s' "$s"
+}
+
+project_summary() {
+  local i p n=0 known=0 bytes=0 unscanned=0
+  for ((i = 0; i < n_proj; i++)); do
+    if [[ ${proj_on[$i]} != 1 ]]; then
+      continue
+    fi
+    n=$((n + 1))
+    if [[ ${proj_scanned[$i]} == 1 ]]; then
+      known=$((known + 1))
+      bytes=$((bytes + proj_art_bytes[$i] + proj_cache_bytes[$i]))
+    else
+      unscanned=$((unscanned + 1))
+    fi
+  done
+  if [[ -n $status_msg ]]; then
+    printf '%s' "$status_msg"
+    return
+  fi
+  if ((n == 0)); then
+    printf 'nothing marked'
+    return
+  fi
+  printf '%d %s marked' "$n" "$(plural_word "$n" project projects)"
+  if ((known > 0)); then
+    printf '%s%s scanned' "$SEP" "$(human_size "$bytes")"
+  fi
+  if ((unscanned > 0)); then
+    printf '%s%d not scanned' "$SEP" "$unscanned"
+  fi
+}
+
+compose_projects() {
+  local win i row p cur right info plain color
+  term_size
+  USABLE=$((COLS - 1))
+  if ((USABLE < 20)); then
+    USABLE=20
+  fi
+  proj_window_size
+  win=$PROJ_WIN
+  ensure_proj_scroll
+  plain="gh-sweep  projects"
+  if ((dry_run)); then
+    plain+="   dry-run"
+  fi
+  _fit "$plain" "$USABLE"
+  plain=$FIT
+  color=$plain
+  if ((use_color)); then
+    color="${C_BCYAN}gh-sweep${C_RESET}  ${C_BOLD}projects${C_RESET}"
+    if ((dry_run)); then
+      color+="   ${C_YELLOW}dry-run${C_RESET}"
+    fi
+  fi
+  add_line "title" "$plain" "$color"
+  if [[ -n $proj_filter ]]; then
+    info="/ ${proj_filter}"
+    if ((proj_filter_edit)); then
+      info+="_"
+    fi
+    info+=$(printf '%s%d shown' "$SEP" "${#proj_view[@]}")
+    add_text plain "$info"
+  elif [[ -n $proj_note ]]; then
+    add_text warn "$proj_note"
+  else
+    add_text dim "space wipes a whole project    enter picks artifacts and caches"
+  fi
+  add_line "blank" "" ""
+  if ((${#proj_view[@]} == 0)); then
+    if [[ -n $proj_filter ]]; then
+      add_text plain "No projects match \"${proj_filter}\"."
+    else
+      add_text plain "No projects yet."
+      add_text dim "Press + and type owner/repo, or run gh-sweep --org name."
+    fi
+    while ((${#screen_lines[@]} < 3 + win)); do
+      add_line "blank" "" ""
+    done
+  else
+    for ((i = 0; i < win; i++)); do
+      row=$((proj_scroll + i))
+      if ((row >= ${#proj_view[@]})); then
+        add_line "blank" "" ""
+        continue
+      fi
+      p=${proj_view[$row]}
+      cur=0
+      if ((row == proj_cursor)); then
+        cur=1
+      fi
+      right=$(project_right "$p")
+      if [[ ${proj_on[$p]} == 1 ]]; then
+        make_line 0 "$cur" all "${proj_nwo[$p]}" "$right" section
+      else
+        make_line 0 "$cur" none "${proj_nwo[$p]}" "$right" section
+      fi
+    done
+  fi
+  while ((${#screen_lines[@]} < 3 + win)); do
+    add_line "blank" "" ""
+  done
+  while ((${#screen_lines[@]} > 3 + win)); do
+    trim_last_line
+  done
+  add_rule
+  plain=$(project_summary)
+  _fit "$plain" "$USABLE"
+  plain=$FIT
+  color=$plain
+  if ((use_color)); then
+    if [[ -n $status_msg ]]; then
+      color="${C_YELLOW}${plain}${C_RESET}"
+    else
+      color="${C_DIM}${plain}${C_RESET}"
+    fi
+  fi
+  add_line "summary" "$plain" "$color"
+  if ((proj_filter_edit)); then
+    info="type to filter    enter done    esc clear"
+  elif [[ -n $proj_filter ]]; then
+    info="esc clears filter    space mark    enter open    d wipe    q quit"
+  else
+    info="space mark    enter pick    a all    n none    d wipe    s scan    + add    / find    q quit"
+  fi
+  _fit "$info" "$USABLE"
+  info=$FIT
+  color=$info
+  if ((use_color)); then
+    color="${C_DIM}${info}${C_RESET}"
+  fi
+  add_line "keys" "$info" "$color"
+}
+
+toggle_project_at_cursor() {
+  local p
+  if ((${#proj_view[@]} == 0)); then
+    return
+  fi
+  p=${proj_view[$proj_cursor]}
+  if [[ ${proj_on[$p]} == 1 ]]; then
+    proj_on[$p]=0
+  else
+    proj_on[$p]=1
+  fi
+}
+
+set_visible_projects() {
+  local v=$1 row p
+  if ((${#proj_view[@]} == 0)); then
+    return
+  fi
+  for row in "${proj_view[@]}"; do
+    proj_on[$row]=$v
+  done
+}
+
+scan_cursor_or_marked() {
+  local i p any=0 failed=0
+  for ((i = 0; i < n_proj; i++)); do
+    if [[ ${proj_on[$i]} == 1 ]]; then
+      any=1
+      if ! scan_project "$i"; then
+        failed=$((failed + 1))
+      fi
+    fi
+  done
+  if ((any == 0 && ${#proj_view[@]} > 0)); then
+    p=${proj_view[$proj_cursor]}
+    if ! scan_project "$p"; then
+      status_msg="Could not read ${proj_nwo[$p]}: ${proj_error[$p]}"
+      return
+    fi
+    status_msg="Scanned ${proj_nwo[$p]}"
+    return
+  fi
+  if ((any == 0)); then
+    status_msg="Nothing to scan"
+    return
+  fi
+  if ((failed > 0)); then
+    status_msg="Scanned with ${failed} $(plural_word "$failed" failure failures)"
+  else
+    status_msg="Scanned"
+  fi
+}
+
+begin_project_wipe() {
+  local i n=0 items=0 bytes=0 exp_bytes=0 failed=""
+  for ((i = 0; i < n_proj; i++)); do
+    if [[ ${proj_on[$i]} != 1 ]]; then
+      continue
+    fi
+    n=$((n + 1))
+    if [[ ${proj_scanned[$i]} != 1 ]]; then
+      if ! scan_project "$i"; then
+        failed=${proj_nwo[$i]}
+        break
+      fi
+    fi
+    items=$((items + proj_art_n[$i] + proj_cache_n[$i]))
+    bytes=$((bytes + proj_art_bytes[$i] + proj_cache_bytes[$i]))
+    exp_bytes=$((exp_bytes + proj_exp_bytes[$i]))
+  done
+  if [[ -n $failed ]]; then
+    status_msg="Could not read ${failed}"
+    mode=projects
+    return
+  fi
+  if ((n == 0)); then
+    status_msg="Nothing marked"
+    return
+  fi
+  if ((items == 0)); then
+    status_msg="Those projects have no artifacts or caches"
+    return
+  fi
+  confirm_scope=projects
+  return_mode=projects
+  confirm_buf=""
+  status_msg=""
+  WIPE_COUNT=$n
+  WIPE_ITEMS=$items
+  WIPE_BYTES=$bytes
+  WIPE_EXPIRED=$exp_bytes
+  if ((n > 1)); then
+    confirm_strict=1
+    confirm_token="wipe"
+  elif ((items > STRICT_COUNT || bytes >= STRICT_BYTES)); then
+    confirm_strict=1
+    confirm_token=""
+    for ((i = 0; i < n_proj; i++)); do
+      if [[ ${proj_on[$i]} == 1 ]]; then
+        confirm_token=${proj_name[$i]}
+        repo_nwo_full=${proj_nwo[$i]}
+        break
+      fi
+    done
+  else
+    confirm_strict=0
+    confirm_token=""
+  fi
+  mode=confirm
+}
+
+compose_confirm_projects() {
+  local i shown=0 line
+  if ((confirm_strict)) && [[ $confirm_token == wipe ]]; then
+    add_text error "Wipe ${WIPE_COUNT} projects"
+  else
+    add_text error "Wipe ${repo_nwo_full}"
+  fi
+  add_line "blank" "" ""
+  if ((dry_run)); then
+    add_text warn "Dry run: nothing will be deleted."
+  else
+    add_text plain "This permanently deletes every artifact and cache in the marked projects."
+  fi
+  if ((WIPE_EXPIRED > 0)); then
+    add_text warn "$(human_size "$WIPE_EXPIRED") of that is expired artifacts. They still use quota."
+  fi
+  add_line "blank" "" ""
+  local max_show=$((ROWS - 16))
+  if ((max_show < 3)); then
+    max_show=3
+  fi
+  for ((i = 0; i < n_proj; i++)); do
+    if [[ ${proj_on[$i]} != 1 ]]; then
+      continue
+    fi
+    if ((shown >= max_show)); then
+      add_text dim "  ... more projects"
+      break
+    fi
+    printf -v line '  %s    %d artifacts    %d caches    %s' \
+      "${proj_nwo[$i]}" "${proj_art_n[$i]}" "${proj_cache_n[$i]}" \
+      "$(human_size "$((proj_art_bytes[$i] + proj_cache_bytes[$i]))")"
+    add_text plain "$line"
+    shown=$((shown + 1))
+  done
+  add_line "blank" "" ""
+  printf -v line 'Total  %d   %s' "$WIPE_ITEMS" "$(human_size "$WIPE_BYTES")"
+  add_text plain "$line"
+  if ((WIPE_ITEMS > 200)); then
+    add_text dim "Largest files go first. GitHub allows about 5,000 API calls an hour."
+  else
+    add_text dim "Largest files are deleted first."
+  fi
+  add_line "blank" "" ""
+  if ((confirm_strict)); then
+    add_text plain "Type ${confirm_token} to confirm"
+    add_text plain "> ${confirm_buf}_"
+    add_text dim "enter confirms    esc cancels"
+  else
+    if ((dry_run)); then
+      add_text plain "y   finish the dry run"
+    else
+      add_text error "y   delete everything marked"
+    fi
+    add_text dim "n   go back"
+  fi
+  if [[ -n $status_msg ]]; then
+    add_line "blank" "" ""
+    add_text warn "$status_msg"
+  fi
+}
+
+select_all_live() {
+  local i
+  for ((i = 0; i < n_items; i++)); do
+    if [[ ${item_dead[$i]} != 1 ]]; then
+      item_on[$i]=1
+    fi
+  done
+}
+
+perform_project_wipes() {
+  local i bytes p
+  local order
+  order=()
+  RESULT_ART=0
+  RESULT_CACHE=0
+  RESULT_BYTES=0
+  RESULT_FAILS=0
+  RESULT_ABORT=0
+  fail_lines=()
+  GRAND_TOTAL=0
+  ABORT=0
+  : > "$tmpdir/pwipe"
+  for ((i = 0; i < n_proj; i++)); do
+    if [[ ${proj_on[$i]} != 1 ]]; then
+      continue
+    fi
+    bytes=$((proj_art_bytes[$i] + proj_cache_bytes[$i]))
+    GRAND_TOTAL=$((GRAND_TOTAL + proj_art_n[$i] + proj_cache_n[$i]))
+    printf '%s\t%s\n' "$bytes" "$i" >> "$tmpdir/pwipe"
+  done
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line ]] && continue
+    p=${line#*$'\t'}
+    [[ -n $p ]] || continue
+    order+=("$p")
+  done < <(LC_ALL=C sort -t $'\t' -k1,1nr "$tmpdir/pwipe")
+  trap 'ABORT=1' INT
+  local done=0
+  if ((${#order[@]} > 0)); then
+    for p in "${order[@]}"; do
+      if ((ABORT)); then
+        break
+      fi
+      filter=""
+      filter_l=""
+      load_project_model "$p"
+      select_all_live
+      delete_current_selection "$done" || true
+      done=$((done + DELETED_N))
+      record_project_stats "$p"
+      if ((proj_art_n[$p] + proj_cache_n[$p] == 0)); then
+        proj_on[$p]=0
+      fi
+    done
+  fi
+  trap 'exit 130' INT
+  RESULT_ABORT=$ABORT
+  if ((WIPE_COUNT == 1)); then
+    RESULT_WHERE=$repo_nwo_full
+  else
+    RESULT_WHERE="${WIPE_COUNT} projects"
+  fi
+  return_mode=projects
+  mode=result
+  draw || true
+}
+
+select_except_newest() {
+  local keep=$1 g i start end rank selected=0 i2
+  for ((i2 = 0; i2 < n_items; i2++)); do
+    if [[ ${item_kind[$i2]} == artifact ]]; then
+      item_on[$i2]=0
+    fi
+  done
+  if ((${#art_groups[@]} == 0)); then
+    status_msg="No artifacts"
+    return
+  fi
+  for g in "${art_groups[@]}"; do
+    rank=0
+    start=${group_start[$g]}
+    end=$((start + group_len[$g]))
+    for ((i = start; i < end; i++)); do
+      if [[ ${item_dead[$i]} == 1 ]]; then
+        continue
+      fi
+      if ! item_match "$i"; then
+        continue
+      fi
+      if ((rank >= keep)); then
+        item_on[$i]=1
+        selected=$((selected + 1))
+      fi
+      rank=$((rank + 1))
+    done
+  done
+  status_msg="Selected ${selected} $(plural_word "$selected" artifact artifacts), keeping the newest ${keep} of each name"
+}
+
+apply_proj_filter() {
+  rebuild_proj_view
+  ensure_proj_scroll
+}
+
+handle_proj_filter_key() {
+  local key=$1
+  status_msg=""
+  case $key in
+    $'\r'|$'\n') proj_filter_edit=0 ;;
+    $'\e')
+      proj_filter=""
+      proj_filter_edit=0
+      apply_proj_filter
+      ;;
+    $'\x7f'|$'\b')
+      proj_filter=${proj_filter%?}
+      apply_proj_filter
+      ;;
+    $'\x15')
+      proj_filter=""
+      apply_proj_filter
+      ;;
+    $'\e[A'|$'\eOA') proj_move -1 ;;
+    $'\e[B'|$'\eOB') proj_move 1 ;;
+    *)
+      if is_printable "$key"; then
+        proj_filter+="$key"
+        apply_proj_filter
+      fi
+      ;;
+  esac
+}
+
+handle_project_key() {
+  local key=$1 p step
+  status_msg=""
+  case $key in
+    $'\e[A'|$'\eOA'|k) proj_move -1 ;;
+    $'\e[B'|$'\eOB'|j) proj_move 1 ;;
+    $'\e[5~'|K)
+      step=0
+      while ((step < 5 && proj_cursor > 0)); do
+        proj_cursor=$((proj_cursor - 1))
+        step=$((step + 1))
+      done
+      ensure_proj_scroll
+      ;;
+    $'\e[6~'|J)
+      step=0
+      while ((step < 5 && proj_cursor + 1 < ${#proj_view[@]})); do
+        proj_cursor=$((proj_cursor + 1))
+        step=$((step + 1))
+      done
+      ensure_proj_scroll
+      ;;
+    g|$'\e[H')
+      proj_cursor=0
+      ensure_proj_scroll
+      ;;
+    G|$'\e[F')
+      if ((${#proj_view[@]} > 0)); then
+        proj_cursor=$((${#proj_view[@]} - 1))
+      fi
+      ensure_proj_scroll
+      ;;
+    ' ') toggle_project_at_cursor ;;
+    $'\r'|$'\n'|$'\e[C'|$'\eOC'|l)
+      if ((${#proj_view[@]} > 0)); then
+        p=${proj_view[$proj_cursor]}
+        open_project_items "$p" || true
+      fi
+      ;;
+    a) set_visible_projects 1 ;;
+    n|N) set_visible_projects 0 ;;
+    d) begin_project_wipe ;;
+    s) scan_cursor_or_marked ;;
+    +|=) begin_add_prompt ;;
+    /) proj_filter_edit=1 ;;
+    '?'|$'\eOP')
+      help_from=projects
+      mode=help
+      ;;
+    q|Q) QUIT=1 ;;
+    $'\e')
+      if [[ -n $proj_filter ]]; then
+        proj_filter=""
+        proj_filter_edit=0
+        apply_proj_filter
+      fi
+      ;;
+  esac
+}
+
+# --- terminal lifecycle --------------------------------------------------
+
+setup_terminal() {
+  saved_stty=$(stty -g)
+  if tput smcup 2>/dev/null; then
+    ALT_MODE="tput"
+  else
+    printf '\033[?1049h'
+    ALT_MODE=ansi
+  fi
+  if ! tput civis 2>/dev/null; then
+    printf '\033[?25l'
+  fi
+  printf '\033[?7l\033[?2004h'
+  stty -echo -icanon min 1 time 0
+  in_alt=1
+  printf '\033]0;gh-sweep %s\007' "$repo_nwo_full"
+}
+
+on_stop() {
+  set +e
+  printf '\033[?2004l\033[?7h'
+  if [[ ${ALT_MODE:-} == tput ]]; then
+    tput cnorm 2>/dev/null
+    tput rmcup 2>/dev/null
+  else
+    printf '\033[?25h\033[?1049l'
+  fi
+  if [[ -n ${saved_stty:-} ]]; then
+    stty "$saved_stty" 2>/dev/null || stty sane 2>/dev/null
+  fi
+  in_alt=0
+  trap - TSTP
+  kill -TSTP $$
+}
+
+on_cont() {
+  trap on_stop TSTP
+  setup_terminal || true
+  draw || true
+}
+
+print_session_summary() {
+  local total verb
+  total=$((${session_art:-0} + ${session_cache:-0}))
+  if ((total == 0)); then
+    return
+  fi
+  if ((${dry_run:-0})); then
+    verb="would delete"
+  else
+    verb="deleted"
+  fi
+  printf 'gh-sweep: %s %d %s and %d %s from %s (%s)\n' \
+    "$verb" \
+    "${session_art:-0}" "$(plural_word "${session_art:-0}" artifact artifacts)" \
+    "${session_cache:-0}" "$(plural_word "${session_cache:-0}" cache caches)" \
+    "${session_repo_list:-${repo_nwo_full:-${repo:-}}}" \
+    "$(human_size "${session_bytes:-0}")"
+}
+
+cleanup() {
+  set +e
+  if [[ ${cleaned:-0} == 1 ]]; then
+    return
+  fi
+  cleaned=1
+  printf '\033[?2004l\033[?7h' 2>/dev/null
+  if ((${in_alt:-0})); then
+    if [[ ${ALT_MODE:-} == tput ]]; then
+      tput cnorm 2>/dev/null
+      tput rmcup 2>/dev/null
+    else
+      printf '\033[?25h\033[?1049l'
+    fi
+    in_alt=0
+  fi
+  if [[ -n ${saved_stty:-} ]]; then
+    stty "$saved_stty" 2>/dev/null || stty sane 2>/dev/null
+  fi
+  if [[ -n ${tmpdir:-} && -d ${tmpdir:-} ]]; then
+    rm -rf "$tmpdir"
+  fi
+  tmpdir=""
+  print_session_summary
+}
+
+require_gh() {
+  if ! command -v gh >/dev/null 2>&1; then
+    printf 'gh-sweep: the GitHub CLI (gh) is not installed.\n' >&2
+    printf 'Install it from https://cli.github.com and run: gh auth login\n' >&2
+    exit 1
+  fi
+}
+
+resolve_repo() {
+  local err info nwo url h
+  if [[ -z $repo && -n ${GH_REPO:-} ]]; then
+    repo=$GH_REPO
+  fi
+  if [[ -z $repo ]]; then
+    err=$(mktemp "${tmpdir}/repo.XXXXXX")
+    if ! info=$(gh repo view --json nameWithOwner,url -q '[.nameWithOwner, .url] | @tsv' 2>"$err"); then
+      printf 'gh-sweep: could not detect a repository.\n' >&2
+      printf 'Pass owner/repo, or run gh-sweep inside a checkout.\n' >&2
+      if [[ -s $err ]]; then
+        head -n 1 "$err" >&2
+      fi
+      rm -f "$err"
+      exit 1
+    fi
+    rm -f "$err"
+    nwo=${info%%$'\t'*}
+    url=${info#*$'\t'}
+    repo=$nwo
+    if [[ $url =~ ^https?://([^/]+)/ ]]; then
+      h=${BASH_REMATCH[1]}
+      if [[ $h != github.com && $h != www.github.com && $h != api.github.com ]]; then
+        repo="${h}/${nwo}"
+      fi
+    fi
+  fi
+  if ! parse_repo "$repo"; then
+    die "not a repository name: ${repo}"
+  fi
+}
+
+require_auth() {
+  local err ok=0
+  err=$(mktemp "${tmpdir}/auth.XXXXXX")
+  if [[ -n $api_hostname ]]; then
+    if gh auth status --hostname "$api_hostname" </dev/null >"$err" 2>&1; then
+      ok=1
+    fi
+  else
+    if gh auth status </dev/null >"$err" 2>&1; then
+      ok=1
+    fi
+  fi
+  rm -f "$err"
+  if ((ok == 0)); then
+    printf 'gh-sweep: gh is not logged in.\n' >&2
+    if [[ -n $api_hostname ]]; then
+      printf 'Run: gh auth login --hostname %s\n' "$api_hostname" >&2
+    else
+      printf 'Run: gh auth login\n' >&2
+    fi
+    exit 1
+  fi
+}
+
+ui_loop() {
+  while (( ! QUIT )); do
+    draw
+    if ! read_key; then
+      if ((WINCH)); then
+        WINCH=0
+        continue
+      fi
+      break
+    fi
+    if ((WINCH)); then
+      WINCH=0
+    fi
+    handle_key
+  done
+}
+
+main() {
+  set -euo pipefail
+  if ((BASH_VERSINFO[0] < 3)) || { ((BASH_VERSINFO[0] == 3)) && ((BASH_VERSINFO[1] < 2)); }; then
+    printf 'gh-sweep: needs bash 3.2 or newer (this is %s).\n' "$BASH_VERSION" >&2
+    exit 1
+  fi
+  parse_args "$@"
+  init_runtime
+  require_gh
+  require_auth
+  export GH_PROMPT_DISABLED=1
+  export GH_NO_UPDATE_NOTIFIER=1
+  export GH_PAGER=cat
+  export PAGER=cat
+  export GIT_TERMINAL_PROMPT=0
+  collect_projects
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    printf 'gh-sweep: this UI needs a terminal.\n' >&2
+    exit 1
+  fi
+  trap cleanup EXIT
+  trap 'exit 130' INT TERM
+  trap 'WINCH=1' WINCH
+  trap on_stop TSTP
+  trap on_cont CONT
+  setup_terminal
+  if [[ -n $initial_filter ]]; then
+    filter=$initial_filter
+    filter_l=$(printf '%s' "$filter" | tr '[:upper:]' '[:lower:]')
+  fi
+  rebuild_proj_view
+  mode=projects
+  ui_loop
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi

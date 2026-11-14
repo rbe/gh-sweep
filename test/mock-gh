@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Stand-in for gh. Prints the post-jq inventory the script expects.
+log=${GH_MOCK_LOG:?}
+{
+  printf 'CALL'
+  for a in "$@"; do
+    printf '\t%s' "$a"
+  done
+  printf '\n'
+} >> "$log"
+
+if [[ ${1:-} == auth ]]; then
+  exit 0
+fi
+
+method="GET"
+endpoint=""
+repo=""
+prev=""
+for a in "$@"; do
+  if [[ $a == DELETE ]]; then
+    method=DELETE
+  fi
+  if [[ $a == repos/* ]]; then
+    endpoint=$a
+  fi
+  if [[ $prev == -R || $prev == --repo ]]; then
+    repo=$a
+  fi
+  prev=$a
+done
+
+nwo_from_endpoint() {
+  local body=${1#repos/}
+  printf '%s' "${body%%/actions/*}"
+}
+
+if [[ ${1:-} == api ]]; then
+  if [[ $method == DELETE ]]; then
+    id=${endpoint##*/}
+    nwo=$(nwo_from_endpoint "$endpoint")
+    printf 'DELETE_ARTIFACT %s %s\n' "$nwo" "$id" >> "$log"
+    exit 0
+  fi
+  if [[ $endpoint == *actions/artifacts* ]]; then
+    nwo=$(nwo_from_endpoint "$endpoint")
+    printf 'LIST_ARTIFACTS %s\n' "$nwo" >> "$log"
+    if [[ $nwo == other/lib ]]; then
+      cat "$GH_MOCK_ART_OTHER"
+    else
+      cat "$GH_MOCK_ART"
+    fi
+    exit 0
+  fi
+fi
+
+if [[ ${1:-} == cache ]]; then
+  if [[ ${2:-} == list || ${2:-} == ls ]]; then
+    printf 'LIST_CACHES %s\n' "$repo" >> "$log"
+    if [[ $repo == other/lib ]]; then
+      : > /dev/null
+    else
+      cat "$GH_MOCK_CACHES"
+    fi
+    exit 0
+  fi
+  if [[ ${2:-} == delete ]]; then
+    id=""
+    for a in "$@"; do
+      if [[ $a =~ ^[0-9]+$ ]]; then
+        id=$a
+      fi
+    done
+    printf 'DELETE_CACHE %s %s\n' "$repo" "$id" >> "$log"
+    exit 0
+  fi
+fi
+
+printf 'unexpected gh invocation: %s\n' "$*" >&2
+exit 1

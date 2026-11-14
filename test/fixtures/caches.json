@@ -1,0 +1,26 @@
+[
+  {
+    "id": 7,
+    "key": "node-Linux-abc",
+    "ref": "refs/heads/main",
+    "sizeInBytes": 2000000000,
+    "createdAt": "2026-11-01T00:00:00Z",
+    "lastAccessedAt": "2026-11-13T12:00:00Z"
+  },
+  {
+    "id": 8,
+    "key": "node-Linux-abc",
+    "ref": "refs/pull/12/merge",
+    "sizeInBytes": 100000000,
+    "createdAt": "2026-10-01T00:00:00Z",
+    "lastAccessedAt": "2026-10-02T00:00:00Z"
+  },
+  {
+    "id": 9,
+    "key": "pip-Linux",
+    "ref": "refs/heads/main",
+    "sizeInBytes": 50000000,
+    "createdAt": "2026-09-01T00:00:00Z",
+    "lastAccessedAt": "2026-09-02T00:00:00.000Z"
+  }
+]
