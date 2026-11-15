@@ -1,11 +1,10 @@
-# Build and run gh-sweep with Podman.
+# Build and run gh-sweep with Podman. Prefer the Makefile:
 #
-#	podman build -t gh-sweep -f Containerfile .
-#	podman run --rm -it -e GH_TOKEN="$(gh auth token)" gh-sweep -- rbe/erechnung
+#	make auth
+#	make container ARGS="rbe/erechnung"
 #
 # gh 2.40 and later keeps the token in the system keyring (service name
-# gh:github.com), not in ~/.config/gh. Mounting that directory does not sign
-# the container in. `gh auth token` reads the keyring token for GH_TOKEN.
+# gh:github.com), not in ~/.config/gh. The container cannot read that keyring.
 
 FROM docker.io/library/golang:1.22-bookworm AS build
 

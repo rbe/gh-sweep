@@ -18,35 +18,24 @@ Expired artifacts cannot be downloaded, but they still count against the Actions
 ## Install
 
 ```bash
-go build -o gh-sweep .
-install -m 755 gh-sweep /usr/local/bin/gh-sweep
+make
+sudo make install
 ```
 
-`gh sweep` also works when the binary is named `gh-sweep` and is on your `PATH`.
+`make` writes `bin/gh-sweep`. `make install` copies it to `/usr/local/bin` (`PREFIX` and `DESTDIR` work as usual). `gh sweep` also works when that binary is named `gh-sweep` and is on your `PATH`.
 
 ## Podman
 
-`Containerfile` builds a small image with `gh-sweep` and the GitHub CLI. The checklist needs a terminal, so run it with `-it`.
+`make` uses Podman when it is installed, and Docker otherwise (`CONTAINER_ENGINE=docker` to force it). The checklist needs a terminal.
 
 ```bash
-podman build -t gh-sweep -f Containerfile .
-podman run --rm -it -e GH_TOKEN="$(gh auth token)" gh-sweep -- rbe/erechnung
+make auth
+make container ARGS="rbe/erechnung"
 ```
 
-`gh auth login` does not write the token into `~/.config/gh`. Since gh 2.40 the default is the system keyring: macOS Keychain, GNOME Keyring (Secret Service) on Linux, or Windows Credential Manager. The item’s service name is `gh:github.com`, and the account is your GitHub username. `hosts.yml` only keeps the username and protocol, which is why mounting `~/.config/gh` into the container still looks logged out. The container cannot read the host keyring.
+`make auth` is `gh auth login`. Since gh 2.40 the token goes to the system keyring (macOS Keychain, or GNOME Keyring on Linux), service name `gh:github.com`, not into `~/.config/gh`. The container cannot read that keyring, so `make container` runs `gh auth token` on the host and passes the result as `GH_TOKEN`. `make token` prints the same value. The current directory is mounted at `/work`, so a checkout is used when you omit `owner/repo`.
 
-`gh auth token` prints the token from that keyring. Passing it as `GH_TOKEN` is what the container’s `gh` will use. `gh auth status` on the host should say `(keyring)` next to the account.
-
-Mount the current directory when you want the container to use that checkout instead of an `owner/repo` argument:
-
-```bash
-podman run --rm -it \
-  -e GH_TOKEN="$(gh auth token)" \
-  -v "${PWD}:/work" -w /work \
-  gh-sweep
-```
-
-To put the token back into `hosts.yml` instead, log in again with `gh auth login --insecure-storage`. The mount of `~/.config/gh` works after that, and the token sits in a plain-text file.
+An existing `GH_TOKEN` in the environment is used as-is and the keyring is not read.
 
 ## Usage
 
