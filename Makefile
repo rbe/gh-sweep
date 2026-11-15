@@ -13,8 +13,6 @@ CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || 
 # Go itself runs in this image, so the host does not need a Go install.
 GO_IMAGE ?= docker.io/library/golang:1.22-bookworm
 
-UID := $(shell id -u)
-GID := $(shell id -g)
 uname_s := $(shell uname -s)
 uname_m := $(shell uname -m)
 
@@ -34,19 +32,17 @@ else
 HOST_GOARCH := $(uname_m)
 endif
 
-# Podman on enforcing SELinux needs a private volume label. macOS does not.
-SELINUX_VOL :=
+# The source tree is read-only inside the container. Go's caches live in
+# named volumes, not in .cache on the host. On macOS the engine runs in a
+# virtual machine, and files it creates on a bind mount belong to a user
+# the Mac account cannot delete.
+SRC_MOUNT := $(CURDIR):/src:ro
+CLEAN_MOUNT := $(CURDIR):/src
 ifeq ($(uname_s),Linux)
 ifeq ($(shell getenforce 2>/dev/null),Enforcing)
-SELINUX_VOL := :Z
+SRC_MOUNT := $(CURDIR):/src:ro,Z
+CLEAN_MOUNT := $(CURDIR):/src:Z
 endif
-endif
-
-# Rootless Podman maps container uid 0 to the host user. keep-id makes
-# uid $(UID) inside the container the same person, so bin/ is not root-owned.
-CONTAINER_USERNS :=
-ifeq ($(CONTAINER_ENGINE),podman)
-CONTAINER_USERNS := --userns=keep-id
 endif
 
 # Extra arguments for the checklist, for example:
@@ -60,14 +56,23 @@ all: build
 build: bin/gh-sweep
 
 bin/gh-sweep: $(wildcard *.go) go.mod go.sum
-	$(call go-in-container,$(HOST_GOOS),$(HOST_GOARCH),go build -trimpath -ldflags="-s -w" -o bin/gh-sweep .)
+	mkdir -p bin
+	tmp=$$(mktemp); \
+	if $(call go-run,-e GOOS=$(HOST_GOOS) -e GOARCH=$(HOST_GOARCH)) \
+		sh -c 'go build -trimpath -ldflags="-s -w" -o /tmp/gh-sweep . && cat /tmp/gh-sweep' \
+		> "$$tmp"; then \
+		mv "$$tmp" $@; \
+		chmod 755 $@; \
+	else \
+		status=$$?; rm -f "$$tmp"; exit $$status; \
+	fi
 
 install: bin/gh-sweep
 	$(INSTALL) -d "$(DESTDIR)$(BINDIR)"
 	$(INSTALL) -m 755 bin/gh-sweep "$(DESTDIR)$(BINDIR)/gh-sweep"
 
 test:
-	$(call go-in-container,,,go test ./...)
+	$(call go-run,) go test ./...
 
 image: bin/image.stamp
 
@@ -100,7 +105,17 @@ container: bin/image.stamp
 		$(IMAGE) $(ARGS)
 
 clean:
-	rm -rf bin .cache
+	rm -rf bin
+	if [ -d .cache ]; then \
+		chmod -R u+w .cache 2>/dev/null || true; \
+		if ! rm -rf .cache 2>/dev/null; then \
+			$(CONTAINER_ENGINE) run --rm --user 0:0 \
+				-v "$(CLEAN_MOUNT)" -w /src \
+				$(GO_IMAGE) \
+				rm -rf .cache; \
+		fi; \
+	fi
+	-$(CONTAINER_ENGINE) volume rm -f gh-sweep-gocache gh-sweep-gomod >/dev/null 2>&1
 
 help:
 	@printf '%s\n' \
@@ -112,25 +127,24 @@ help:
 		'run         run bin/gh-sweep (ARGS="owner/repo")' \
 		'image       build the container image with $(CONTAINER_ENGINE)' \
 		'container   run the image; passes GH_TOKEN from the keyring' \
-		'clean       remove bin/ and .cache/' \
+		'clean       remove bin/, leftover .cache, and the Go volumes' \
 		'' \
 		'Go is not installed on the host. Build and test use $(GO_IMAGE).' \
+		'The Go cache is the volumes gh-sweep-gocache and gh-sweep-gomod.' \
 		'The container cannot see the macOS Keychain or Linux keyring.' \
 		'make auth && make container ARGS="owner/repo"'
 
-# $(1) GOOS, $(2) GOARCH, $(3) command. Empty GOOS/GOARCH means the image's own OS.
-define go-in-container
-	mkdir -p .cache/go-mod .cache/go-build bin
-	$(CONTAINER_ENGINE) run --rm $(CONTAINER_USERNS) \
-		-u "$(UID):$(GID)" \
-		-e HOME=/tmp \
-		-e GOCACHE=/src/.cache/go-build \
-		-e GOMODCACHE=/src/.cache/go-mod \
-		-e CGO_ENABLED=0 \
-		-e GOOS="$(1)" \
-		-e GOARCH="$(2)" \
-		-v "$(CURDIR):/src$(SELINUX_VOL)" \
-		-w /src \
-		$(GO_IMAGE) \
-		$(3)
+# $(1) is extra container -e flags, or empty. The source tree is not written.
+define go-run
+$(CONTAINER_ENGINE) run --rm \
+	-e HOME=/tmp \
+	-e CGO_ENABLED=0 \
+	-e GOCACHE=/var/cache/gh-sweep/build \
+	-e GOMODCACHE=/var/cache/gh-sweep/mod \
+	$(1) \
+	-v gh-sweep-gocache:/var/cache/gh-sweep/build \
+	-v gh-sweep-gomod:/var/cache/gh-sweep/mod \
+	-v "$(SRC_MOUNT)" \
+	-w /src \
+	$(GO_IMAGE)
 endef
