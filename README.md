@@ -10,10 +10,12 @@ Expired artifacts cannot be downloaded, but they still count against the Actions
 
 ## Requirements
 
-- macOS or Linux
-- Go 1.22 or newer
-- [GitHub CLI](https://cli.github.com) 2.40 or newer, logged in
+- macOS or Linux, with GNU make (the `make` that ships with both)
+- Podman, or Docker (`CONTAINER_ENGINE=docker`)
+- [GitHub CLI](https://cli.github.com) 2.40 or newer, logged in, when you run the tool on the host
 - `repo` scope if the repository is private, and to delete caches
+
+Go does not need to be installed. `make` and `make test` compile inside `docker.io/library/golang:1.22-bookworm` and write a binary for the machine you are on.
 
 ## Install
 
