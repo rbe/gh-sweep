@@ -23,10 +23,10 @@ Go does not need to be installed. `make` and `make test` compile inside `docker.
 
 ```bash
 make
-sudo make install
+make install
 ```
 
-`make` writes `bin/gh-sweep`. `make install` copies it to `/usr/local/bin` (`PREFIX` and `DESTDIR` work as usual). `gh sweep` also works when that binary is named `gh-sweep` and is on your `PATH`.
+`make` writes `bin/gh-sweep`. `make install` copies it to `~/.local/bin`, which does not need root. `PREFIX` and `DESTDIR` still work. If that directory is not on your `PATH` yet, add `export PATH="$HOME/.local/bin:$PATH"` to your shell startup file. `gh sweep` also works when that binary is named `gh-sweep` and is on your `PATH`.
 
 ## Podman
 

@@ -1,7 +1,7 @@
 # GNU make 3.81 (the make shipped with macOS) and newer.
 # Recipes are POSIX sh.
 
-PREFIX ?= /usr/local
+PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
 DESTDIR ?=
 INSTALL ?= install
@@ -72,6 +72,13 @@ bin/gh-sweep: $(SOURCES) go.mod go.sum
 install: bin/gh-sweep
 	$(INSTALL) -d "$(DESTDIR)$(BINDIR)"
 	$(INSTALL) -m 755 bin/gh-sweep "$(DESTDIR)$(BINDIR)/gh-sweep"
+	@if [ -z "$(DESTDIR)" ]; then \
+		case ":$$PATH:" in \
+			*":$(BINDIR):"*) ;; \
+			*) printf '%s\n' '$(BINDIR) is not on PATH. Add it with:' \
+				'export PATH="$(BINDIR):$$PATH"' ;; \
+		esac; \
+	fi
 
 test:
 	$(call go-run,) go test ./...
@@ -122,7 +129,7 @@ clean:
 help:
 	@printf '%s\n' \
 		'build       compile bin/gh-sweep for this machine, using a Go container' \
-		'install     install to $$(DESTDIR)$(BINDIR) (PREFIX=$(PREFIX))' \
+		'install     install to ~/.local/bin (PREFIX=$(PREFIX))' \
 		'test        run the tests inside the Go container' \
 		'auth        gh auth login (stores the token in the system keyring)' \
 		'token       print the keyring token (gh auth token)' \
