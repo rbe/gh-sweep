@@ -17,7 +17,7 @@ Expired artifacts cannot be downloaded, but they still count against the Actions
 - [GitHub CLI](https://cli.github.com) 2.40 or newer, logged in, when you run the tool on the host
 - `repo` scope if the repository is private, and to delete caches
 
-Go does not need to be installed. `make` and `make test` compile inside `docker.io/library/golang:1.22-bookworm` and write a binary for the machine you are on. The Go cache is kept in the container volumes `gh-sweep-gocache` and `gh-sweep-gomod`, not in the project directory. `make clean` removes `bin/`, those volumes, and a leftover `.cache` from an older build. `make clean f=-f` also force-removes the `gh-sweep` image and any containers still using it. On macOS that directory belongs to the container user, so `make clean` deletes it from inside the container.
+Go does not need to be installed. `make` and `make test` compile inside `docker.io/library/golang:1.22-bookworm` and write a binary for the machine you are on. The Go cache is kept in the container volumes `gh-sweep-gocache` and `gh-sweep-gomod`, not in the project directory. `make clean` removes `bin/`, those volumes, and a leftover `.cache` from an older build. `make clean FORCE=1` also force-removes the `gh-sweep` image and any containers still using it. On macOS that directory belongs to the container user, so `make clean` deletes it from inside the container.
 
 ## Install
 
