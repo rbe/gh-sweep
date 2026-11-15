@@ -55,7 +55,9 @@ all: build
 
 build: bin/gh-sweep
 
-bin/gh-sweep: $(wildcard *.go) go.mod go.sum
+SOURCES := $(wildcard *.go internal/*/*.go)
+
+bin/gh-sweep: $(SOURCES) go.mod go.sum
 	mkdir -p bin
 	tmp=$$(mktemp); \
 	if $(call go-run,-e GOOS=$(HOST_GOOS) -e GOARCH=$(HOST_GOARCH)) \
@@ -76,7 +78,7 @@ test:
 
 image: bin/image.stamp
 
-bin/image.stamp: $(CONTAINERFILE) .containerignore go.mod go.sum $(wildcard *.go)
+bin/image.stamp: $(CONTAINERFILE) .containerignore go.mod go.sum $(SOURCES)
 	mkdir -p bin
 	$(CONTAINER_ENGINE) build -t $(IMAGE) -f $(CONTAINERFILE) .
 	touch $@

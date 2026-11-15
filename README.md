@@ -8,6 +8,8 @@ The first screen is a list of repositories. Check one or more and delete everyth
 
 Expired artifacts cannot be downloaded, but they still count against the Actions storage quota. A few large files usually hold most of the bytes, so deletes run largest-first. GitHub recalculates usage every 6–12 hours, which means a deploy can still report a full quota after the deletes have succeeded.
 
+`main.go` reads the flags. `internal/ui` is the checklist, `internal/project` is a repository and the artifacts and caches in it, `internal/gh` calls the GitHub CLI, and `internal/format` turns sizes, times, and refs into the text on screen.
+
 ## Requirements
 
 - macOS or Linux, with GNU make (the `make` that ships with both)

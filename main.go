@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/rbe/gh-sweep/internal/ui"
 )
 
 func main() {
@@ -14,18 +14,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "gh-sweep: %s\n", err)
 		os.Exit(2)
 	}
-	prog := tea.NewProgram(newModel(opts), tea.WithAltScreen())
-	final, err := prog.Run()
-	if err != nil {
+	if err := ui.Run(opts); err != nil {
 		fmt.Fprintf(os.Stderr, "gh-sweep: %s\n", err)
 		os.Exit(1)
 	}
-	if m, ok := final.(model); ok {
-		printSummary(m)
-	}
 }
 
-func parseCLI(args []string) (options, error) {
+func parseCLI(args []string) (ui.Options, error) {
 	fs := flag.NewFlagSet("gh-sweep", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usageText) }
@@ -45,58 +40,31 @@ func parseCLI(args []string) (options, error) {
 		if err == flag.ErrHelp {
 			os.Exit(0)
 		}
-		return options{}, err
+		return ui.Options{}, err
 	}
 	repos = append(repos, fs.Args()...)
 	if len(repos) > 0 && (*org != "" || *user != "" || *mine) {
-		return options{}, fmt.Errorf("pass repositories or --org/--user/--mine, not both")
+		return ui.Options{}, fmt.Errorf("pass repositories or --org/--user/--mine, not both")
 	}
 	if *org != "" && (*user != "" || *mine) {
-		return options{}, fmt.Errorf("use only one of --org, --user, or --mine")
+		return ui.Options{}, fmt.Errorf("use only one of --org, --user, or --mine")
 	}
 	if *user != "" && *mine {
-		return options{}, fmt.Errorf("use only one of --user or --mine")
+		return ui.Options{}, fmt.Errorf("use only one of --user or --mine")
 	}
 	if *artOnly && *cacheOnly {
-		return options{}, fmt.Errorf("use either --artifacts-only or --caches-only")
+		return ui.Options{}, fmt.Errorf("use either --artifacts-only or --caches-only")
 	}
-	return options{
-		repos:     repos,
-		org:       *org,
-		user:      *user,
-		mine:      *mine,
-		wantArt:   !*cacheOnly,
-		wantCache: !*artOnly,
-		dryRun:    *dry,
-		filter:    *filter,
+	return ui.Options{
+		Repos:     repos,
+		Org:       *org,
+		User:      *user,
+		Mine:      *mine,
+		WantArt:   !*cacheOnly,
+		WantCache: !*artOnly,
+		DryRun:    *dry,
+		Filter:    *filter,
 	}, nil
-}
-
-func printSummary(m model) {
-	total := m.sessionArt + m.sessionCache
-	if total == 0 {
-		return
-	}
-	verb := "deleted"
-	if m.opts.dryRun {
-		verb = "would delete"
-	}
-	where := m.sessionRepos
-	if where == "" {
-		where = "GitHub"
-	}
-	fmt.Printf("gh-sweep: %s %d %s and %d %s from %s (%s)\n",
-		verb,
-		m.sessionArt, plural(m.sessionArt, "artifact", "artifacts"),
-		m.sessionCache, plural(m.sessionCache, "cache", "caches"),
-		where, humanSize(m.sessionBytes))
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
 }
 
 const usageText = `gh-sweep — delete GitHub Actions artifacts and caches
