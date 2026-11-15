@@ -125,6 +125,11 @@ clean:
 		fi; \
 	fi
 	-$(CONTAINER_ENGINE) volume rm -f gh-sweep-gocache gh-sweep-gomod >/dev/null 2>&1
+	if [ "$(f)" = "-f" ]; then \
+		ids=$$($(CONTAINER_ENGINE) ps -aq --filter ancestor=$(IMAGE) 2>/dev/null || true); \
+		if [ -n "$$ids" ]; then $(CONTAINER_ENGINE) rm -f $$ids; fi; \
+		$(CONTAINER_ENGINE) rmi -f $(IMAGE) >/dev/null 2>&1 || true; \
+	fi
 
 help:
 	@printf '%s\n' \
@@ -137,6 +142,7 @@ help:
 		'image       build the container image with $(CONTAINER_ENGINE)' \
 		'container   run the image; passes GH_TOKEN from the keyring' \
 		'clean       remove bin/, leftover .cache, and the Go volumes' \
+		'            make clean f=-f also force-removes the image and its containers' \
 		'' \
 		'Go is not installed on the host. Build and test use $(GO_IMAGE).' \
 		'The Go cache is the volumes gh-sweep-gocache and gh-sweep-gomod.' \
