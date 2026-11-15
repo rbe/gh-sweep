@@ -30,19 +30,23 @@ install -m 755 gh-sweep /usr/local/bin/gh-sweep
 
 ```bash
 podman build -t gh-sweep -f Containerfile .
-podman run --rm -it -e GH_TOKEN gh-sweep -- rbe/erechnung
+podman run --rm -it -e GH_TOKEN="$(gh auth token)" gh-sweep -- rbe/erechnung
 ```
 
-`-e GH_TOKEN` forwards the token from your shell. Rootless Podman can mount an existing `gh` login instead:
+`gh auth login` does not write the token into `~/.config/gh`. Since gh 2.40 the default is the system keyring: macOS Keychain, GNOME Keyring (Secret Service) on Linux, or Windows Credential Manager. The item’s service name is `gh:github.com`, and the account is your GitHub username. `hosts.yml` only keeps the username and protocol, which is why mounting `~/.config/gh` into the container still looks logged out. The container cannot read the host keyring.
+
+`gh auth token` prints the token from that keyring. Passing it as `GH_TOKEN` is what the container’s `gh` will use. `gh auth status` on the host should say `(keyring)` next to the account.
+
+Mount the current directory when you want the container to use that checkout instead of an `owner/repo` argument:
 
 ```bash
 podman run --rm -it \
-  -v "${HOME}/.config/gh:/root/.config/gh:ro" \
+  -e GH_TOKEN="$(gh auth token)" \
   -v "${PWD}:/work" -w /work \
   gh-sweep
 ```
 
-Mounting the current directory lets `gh-sweep` use that checkout when you do not pass `owner/repo`.
+To put the token back into `hosts.yml` instead, log in again with `gh auth login --insecure-storage`. The mount of `~/.config/gh` works after that, and the token sits in a plain-text file.
 
 ## Usage
 

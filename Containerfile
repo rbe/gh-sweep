@@ -1,14 +1,11 @@
 # Build and run gh-sweep with Podman.
 #
 #	podman build -t gh-sweep -f Containerfile .
-#	podman run --rm -it -e GH_TOKEN gh-sweep -- rbe/erechnung
+#	podman run --rm -it -e GH_TOKEN="$(gh auth token)" gh-sweep -- rbe/erechnung
 #
-# Rootless Podman can also reuse a logged-in gh config:
-#
-#	podman run --rm -it \
-#	  -v "${HOME}/.config/gh:/root/.config/gh:ro" \
-#	  -v "${PWD}:/work" -w /work \
-#	  gh-sweep
+# gh 2.40 and later keeps the token in the system keyring (service name
+# gh:github.com), not in ~/.config/gh. Mounting that directory does not sign
+# the container in. `gh auth token` reads the keyring token for GH_TOKEN.
 
 FROM docker.io/library/golang:1.22-bookworm AS build
 
