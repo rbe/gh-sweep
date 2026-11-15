@@ -24,6 +24,26 @@ install -m 755 gh-sweep /usr/local/bin/gh-sweep
 
 `gh sweep` also works when the binary is named `gh-sweep` and is on your `PATH`.
 
+## Podman
+
+`Containerfile` builds a small image with `gh-sweep` and the GitHub CLI. The checklist needs a terminal, so run it with `-it`.
+
+```bash
+podman build -t gh-sweep -f Containerfile .
+podman run --rm -it -e GH_TOKEN gh-sweep -- rbe/erechnung
+```
+
+`-e GH_TOKEN` forwards the token from your shell. Rootless Podman can mount an existing `gh` login instead:
+
+```bash
+podman run --rm -it \
+  -v "${HOME}/.config/gh:/root/.config/gh:ro" \
+  -v "${PWD}:/work" -w /work \
+  gh-sweep
+```
+
+Mounting the current directory lets `gh-sweep` use that checkout when you do not pass `owner/repo`.
+
 ## Usage
 
 ```bash
