@@ -225,7 +225,7 @@ func collect(o Options) ([]project.Project, string, error) {
 		if len(names) >= gh.ListCap {
 			note = fmt.Sprintf("Showing the first %d repositories.", gh.ListCap)
 		}
-	case o.Mine:
+	default:
 		names, err := gh.ListRepos("")
 		if err != nil {
 			return nil, "", err
@@ -233,15 +233,6 @@ func collect(o Options) ([]project.Project, string, error) {
 		specs = names
 		if len(names) >= gh.ListCap {
 			note = fmt.Sprintf("Showing the first %d repositories.", gh.ListCap)
-		}
-	default:
-		if nwo, err := gh.DetectCheckout(); err == nil {
-			specs = []string{nwo}
-		} else if names, err := gh.ListRepos(""); err == nil {
-			specs = names
-			if len(names) >= gh.ListCap {
-				note = fmt.Sprintf("Showing the first %d repositories.", gh.ListCap)
-			}
 		}
 	}
 	var projects []project.Project

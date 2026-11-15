@@ -13,6 +13,11 @@ if [[ ${1:-} == auth ]]; then
   exit 0
 fi
 
+if [[ ${1:-} == repo && ${2:-} == list ]]; then
+  printf '%s\n' "${GH_MOCK_REPOS:-acme/widgets}"
+  exit 0
+fi
+
 method="GET"
 endpoint=""
 repo=""

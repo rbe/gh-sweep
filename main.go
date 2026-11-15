@@ -26,7 +26,7 @@ func parseCLI(args []string) (ui.Options, error) {
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usageText) }
 	org := fs.String("org", "", "list repositories in this organization")
 	user := fs.String("user", "", "list repositories owned by this user")
-	mine := fs.Bool("mine", false, "list repositories for the logged-in user")
+	mine := fs.Bool("mine", false, "list repositories for the logged-in user (the default)")
 	artOnly := fs.Bool("artifacts-only", false, "don't list or delete caches")
 	cacheOnly := fs.Bool("caches-only", false, "don't list or delete artifacts")
 	dry := fs.Bool("dry-run", false, "confirm without deleting")
@@ -79,7 +79,7 @@ Options:
   -repo owner/repo     repository, repeatable
   -org name            list repositories in this organization
   -user name           list repositories owned by this user
-  -mine                list repositories for the logged-in user
+  -mine                list repositories for the logged-in user (the default)
   -artifacts-only      don't list or delete caches
   -caches-only         don't list or delete artifacts
   -filter text         start the item view with this filter
