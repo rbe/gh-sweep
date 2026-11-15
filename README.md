@@ -2,36 +2,27 @@
 
 A terminal checklist for deleting GitHub Actions artifacts and caches.
 
-The first screen is a list of repositories. Check one or more and delete
-everything in them, or open a repository and check individual artifacts
-and cache entries.
+The screen is built with [Charmbracelet](https://github.com/charmbracelet): Bubble Tea runs the program, Lip Gloss draws the colors, and Bubbles provides the text prompt. GitHub itself is still the `gh` CLI.
 
-Expired artifacts cannot be downloaded, but they still count against the
-Actions storage quota. A few large files usually hold most of the bytes, so
-deletes run largest-first. GitHub recalculates usage every 6–12 hours, which
-means a deploy can still report a full quota after the deletes have succeeded.
+The first screen is a list of repositories. Check one or more and delete everything in them, or open a repository and check individual artifacts and cache entries.
+
+Expired artifacts cannot be downloaded, but they still count against the Actions storage quota. A few large files usually hold most of the bytes, so deletes run largest-first. GitHub recalculates usage every 6–12 hours, which means a deploy can still report a full quota after the deletes have succeeded.
 
 ## Requirements
 
 - macOS or Linux
-- bash 3.2 or newer (the bash that ships with macOS)
+- Go 1.22 or newer
 - [GitHub CLI](https://cli.github.com) 2.40 or newer, logged in
 - `repo` scope if the repository is private, and to delete caches
 
 ## Install
 
 ```bash
+go build -o gh-sweep .
 install -m 755 gh-sweep /usr/local/bin/gh-sweep
 ```
 
-Either of these then works:
-
-```bash
-gh-sweep
-gh sweep
-```
-
-`gh sweep` works when an executable named `gh-sweep` is on your `PATH`.
+`gh sweep` also works when the binary is named `gh-sweep` and is on your `PATH`.
 
 ## Usage
 
@@ -56,7 +47,7 @@ gh-sweep owner/repo --dry-run
 | d | Delete everything in the marked repositories, after a confirmation. |
 | s | Scan sizes without deleting. |
 | + | Add `owner/repo`. |
-| / | Filter the list. |
+| / | Filter the list. Type to narrow it. Esc clears it. |
 | q | Quit. |
 
 ### Inside a repository
@@ -78,12 +69,9 @@ gh-sweep owner/repo --dry-run
 | r | Reload from GitHub. |
 | q | Quit. |
 
-Nothing is deleted until the confirmation. One large repository asks you to
-type its name. Marking more than one repository asks you to type `wipe`.
+Nothing is deleted until the confirmation. One large repository asks you to type its name. Marking more than one repository asks you to type `wipe`.
 
-Checking an artifact group selects every run with that name. Checking a
-cache group selects every entry with that key, which is the whole cache
-across refs. Open the group to keep one.
+Checking an artifact group selects every run with that name. Checking a cache group selects every entry with that key, which is the whole cache across refs. Open the group to keep one.
 
 ## What gets deleted
 
@@ -107,10 +95,6 @@ bash test/run.sh
 
 ## Notes
 
-- The artifacts API returns the artifacts GitHub still lists, including
-  expired ones. If the reported total is higher than the list, the screen
-  says so.
+- The artifacts API returns the artifacts GitHub still lists, including expired ones. If the reported total is higher than the list, the screen says so.
 - Cache deletion needs the `repo` scope.
-- Deleting thousands of artifacts can hit GitHub's secondary rate limit.
-  gh-sweep waits and retries, and it has already removed the largest files
-  by the time that happens.
+- Deleting thousands of artifacts can hit GitHub's secondary rate limit. gh-sweep waits and retries, and it has already removed the largest files by the time that happens.
