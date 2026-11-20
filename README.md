@@ -8,7 +8,7 @@ The first screen is a list of repositories. Check one or more and delete everyth
 
 Expired artifacts cannot be downloaded, but they still count against the Actions storage quota. A few large files usually hold most of the bytes, so deletes run largest-first. GitHub recalculates usage every 6–12 hours, which means a deploy can still report a full quota after the deletes have succeeded.
 
-`main.go` reads the flags. `internal/ui` is the checklist, `internal/project` is a repository and the artifacts and caches in it, `internal/gh` calls the GitHub CLI, and `internal/format` turns sizes, times, and refs into the text on screen.
+`main.go` reads the flags and prints the summary. `internal/ui` is the checklist, `internal/project` is a repository, the artifacts and caches in it, and the lines of the summary, `internal/gh` calls the GitHub CLI, and `internal/format` turns sizes, times, and refs into the text on screen.
 
 ## Requirements
 
@@ -53,6 +53,23 @@ gh-sweep owner/repo --artifacts-only
 gh-sweep owner/repo --caches-only
 gh-sweep owner/repo --dry-run
 ```
+
+### Summary
+
+```bash
+gh-sweep --summary                    # repositories of the logged-in user
+gh-sweep --summary rbe/erechnung other/app
+```
+
+`--summary` prints one line for each repository, then a total line, and exits. It opens no checklist and deletes nothing. Put `--summary` before the repository names. The output is plain text on standard output:
+
+```text
+rbe/erechnung: artifacts 42, caches 7, size 3.4 GB
+other/app: artifacts 3, caches 0, size 12.0 MB
+total: artifacts 45, caches 7, size 3.4 GB
+```
+
+A repository with no artifact and no cache gets no line. When no repository has an entry, the tool prints only the total line, with zeros. The total line comes last. `--org`, `--user`, `--artifacts-only`, and `--caches-only` work as they do for the checklist. `--summary` together with `--dry-run` behaves as `--summary`. An error from `gh` is printed to standard error, the tool prints no summary, and the exit status is not zero.
 
 ### Projects
 
