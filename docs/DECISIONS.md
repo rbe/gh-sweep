@@ -9,3 +9,4 @@ One list. An Open row is a choice that waits for an answer. A Decided row is a c
 | D-3 | Decided | A repository argument is parsed as `owner/name`. |
 | D-4 | Decided | The checklist selects a repository and a group, and it deletes the largest entry first. |
 | D-5 | Decided | With no repository argument, the tool lists the repositories of the logged-in user. |
+| D-6 | Decided | The tests run with `make test`, in the Go container. The project has no shell-script wrapper for a Make target. |

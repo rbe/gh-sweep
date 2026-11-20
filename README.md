@@ -107,8 +107,10 @@ gh cache delete CACHE_ID -R OWNER/REPO
 ## Tests
 
 ```bash
-bash test/run.sh
+make test
 ```
+
+The tests run inside the Go container. `make coverage` reports the lines a change touched, and `make test-changed` then runs the tests of the packages that cover the change.
 
 ## Notes
 
