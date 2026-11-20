@@ -1,9 +1,9 @@
 ---
 id: H-2026-11-20-os-exec-import-test
 title: A test proves that only internal/gh imports os/exec
-status: started
+status: closed
 adrs: [ADR-0001]
-skills: [develop, go, review, security, project-report]
+skills: [develop, go, review, security, project-report, release]
 decisions: []
 proposals: []
 issues: [K-2]
@@ -47,4 +47,4 @@ Left alone: ADR-0002 and D-6 have no test. Each is a rule about how to work, not
 
 ## Release
 
-Not invoked yet.
+The owner said: do not merge, push the branch, and stop before the merge. The project has no workflow, so `make editorconfig`, `make format`, `make lint`, `make test`, `make integration`, and `make coverage` ran on this machine, and each passed. What ships is one test file. The binary and the image of the project are unchanged. The slice ships with the merge of the branch `os-exec-import-test` into `main`. The owner does that merge after the review. The branch has the close of the task, so the board is correct on `main` after the merge. K-2 is deleted and its id is retired.
