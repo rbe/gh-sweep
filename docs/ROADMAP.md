@@ -4,4 +4,3 @@ One line for each slice in progress. The line cites the history id and, when the
 
 <!-- Add one line for each slice below, as: - H-2026-11-20-slugify -->
 
-- H-2026-11-20-summary-flag

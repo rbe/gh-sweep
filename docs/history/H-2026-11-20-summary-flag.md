@@ -1,9 +1,9 @@
 ---
 id: H-2026-11-20-summary-flag
 title: The flag --summary prints one line for each repository
-status: started
+status: closed
 adrs: [ADR-0003]
-skills: [plan, security, develop, go, review, project-report]
+skills: [plan, security, develop, go, review, project-report, release]
 decisions: [D-7, D-8]
 proposals: [P-1]
 issues: [K-3]
@@ -78,4 +78,4 @@ Left alone: ADR-0001, ADR-0002, and D-6 have no test. ADR-0001 waits as K-2. ADR
 
 ## Release
 
-Not invoked yet.
+The owner asked for the ship and said: do not merge. The project has no workflow, so `make editorconfig`, `make format`, `make lint`, `make test`, `make integration`, and `make coverage` ran on this machine after the push, and each passed. The change touches no workflow, no version, no image recipe, and no Make target, so `github-pipeline` and `project-setup` were not invoked. What ships: the flag `--summary` in the binary that `make build` writes and in the image that `make image` builds. The slice ships with the merge of the branch `summary-flag` into `main`. The branch is pushed. The merge is left to the owner, who reviews the branch first. P-1 stays open. This slice did not start from it.
