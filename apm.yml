@@ -1,0 +1,18 @@
+name: gh-sweep
+version: 0.1.0
+targets:
+  - claude
+dependencies:
+  apm:
+    - git: rbe/ralfskills
+      skills:
+        - plan
+        - develop
+        - review
+        - release
+        - record
+        - project-report
+        - project-setup
+        - go
+        - shell
+        - security

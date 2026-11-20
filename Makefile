@@ -49,11 +49,61 @@ endif
 #   make run ARGS='rbe/erechnung --dry-run'
 ARGS ?=
 
-.PHONY: all build install test image auth token run container clean help
+# $(1) is extra container -e flags, or empty. The source tree is not written.
+define go-run
+$(CONTAINER_ENGINE) run --rm \
+	-e HOME=/tmp \
+	-e CGO_ENABLED=0 \
+	-e GOCACHE=/var/cache/gh-sweep/build \
+	-e GOMODCACHE=/var/cache/gh-sweep/mod \
+	$(1) \
+	-v gh-sweep-gocache:/var/cache/gh-sweep/build \
+	-v gh-sweep-gomod:/var/cache/gh-sweep/mod \
+	-v "$(SRC_MOUNT)" \
+	-w /src \
+	$(GO_IMAGE)
+endef
 
-all: build
+# The same container with a writable source tree. Only coverage and
+# format-fix use it. They write build/coverage and the Go files.
+define go-run-rw
+$(CONTAINER_ENGINE) run --rm \
+	-e HOME=/tmp \
+	-e CGO_ENABLED=0 \
+	-e GOCACHE=/var/cache/gh-sweep/build \
+	-e GOMODCACHE=/var/cache/gh-sweep/mod \
+	$(1) \
+	-v gh-sweep-gocache:/var/cache/gh-sweep/build \
+	-v gh-sweep-gomod:/var/cache/gh-sweep/mod \
+	-v "$(CLEAN_MOUNT)" \
+	-w /src \
+	$(GO_IMAGE)
+endef
 
-build: bin/gh-sweep
+# The Make contract of the project-setup skill. Each command variable is
+# set before the include. Go runs in the container, as before.
+SETUP_CMD = $(call go-run,) go mod download
+BUILD_CMD = $(MAKE) bin/gh-sweep
+TEST_CMD = $(call go-run,) go test ./...
+INTEGRATION_CMD = true
+# gofmt reads the package directories of the project and no other directory.
+FORMAT_CMD = $(call go-run,) sh -c 'files=$$(gofmt -l $$(go list -f "{{.Dir}}" ./...)); if [ -n "$$files" ]; then printf "%s\n" "gofmt would change:" "$$files"; exit 1; fi'
+FORMAT_FIX_CMD = $(call go-run-rw,) sh -c 'gofmt -w $$(go list -f "{{.Dir}}" ./...)'
+LINT_CMD = $(call go-run,) go vet ./...
+COVERAGE_CMD = set -eu; \
+	base=$$(git merge-base HEAD origin/$(DEFAULT_BRANCH) 2>/dev/null || git rev-parse -q --verify HEAD 2>/dev/null || git hash-object -t tree /dev/null); \
+	git add -N .; \
+	git diff "$$base" > build/coverage/change.diff; \
+	$(call go-run-rw,) sh -c 'set -eu; mkdir -p build/coverage/go; for pkg in $$(go list ./...); do go test -coverpkg=./... -coverprofile="build/coverage/go/$$(printf "%s" "$$pkg" | tr "/" "_").out" "$$pkg"; done'; \
+	$(PYTHON) .claude/skills/project-report/scripts/go_cover_map.py; \
+	REPORT=build/coverage/coverage.xml $(DIFF_COVER)
+TEST_CHANGED_CMD = chosen=$$($(PYTHON) .claude/skills/project-report/scripts/changed_tests.py --print); \
+	if [ -z "$$chosen" ]; then printf '%s\n' "test-changed: no test covers the changed files. make test runs the full suite."; \
+	else printf 'test-changed: %s\n' "$$chosen"; $(call go-run,) go test $$chosen; fi
+
+include .claude/skills/project-setup/project.mk
+
+.PHONY: install image auth token run container clean notes
 
 SOURCES := $(wildcard *.go internal/*/*.go)
 
@@ -69,7 +119,7 @@ bin/gh-sweep: $(SOURCES) go.mod go.sum
 		status=$$?; rm -f "$$tmp"; exit $$status; \
 	fi
 
-install: bin/gh-sweep
+install: bin/gh-sweep ## Install to ~/.local/bin. PREFIX and DESTDIR work
 	$(INSTALL) -d "$(DESTDIR)$(BINDIR)"
 	$(INSTALL) -m 755 bin/gh-sweep "$(DESTDIR)$(BINDIR)/gh-sweep"
 	@if [ -z "$(DESTDIR)" ]; then \
@@ -80,10 +130,7 @@ install: bin/gh-sweep
 		esac; \
 	fi
 
-test:
-	$(call go-run,) go test ./...
-
-image: bin/image.stamp
+image: bin/image.stamp ## Build the container image
 
 bin/image.stamp: $(CONTAINERFILE) .containerignore go.mod go.sum $(SOURCES)
 	mkdir -p bin
@@ -91,18 +138,18 @@ bin/image.stamp: $(CONTAINERFILE) .containerignore go.mod go.sum $(SOURCES)
 	touch $@
 
 # Log in on the host. The token goes to the system keyring, not ~/.config/gh.
-auth:
+auth: ## gh auth login. The token goes to the system keyring
 	gh auth login
 
 # Print the keyring token. The container cannot read the host keyring.
-token:
+token: ## Print the keyring token
 	@gh auth token
 
-run: bin/gh-sweep
+run: bin/gh-sweep ## Run bin/gh-sweep. Set ARGS to owner/repo
 	./bin/gh-sweep $(ARGS)
 
 # Build the image if needed, then run it with a terminal and GH_TOKEN.
-container: bin/image.stamp
+container: bin/image.stamp ## Run the image with GH_TOKEN from the keyring
 	token="$${GH_TOKEN:-$$(gh auth token 2>/dev/null || true)}"; \
 	if [ -z "$$token" ]; then \
 		printf '%s\n' 'No token in the keyring. Run: make auth' >&2; \
@@ -113,8 +160,8 @@ container: bin/image.stamp
 		-v "$(CURDIR):/work" -w /work \
 		$(IMAGE) $(ARGS)
 
-clean:
-	rm -rf bin
+clean: ## Remove bin/, build/, a leftover .cache, and the Go volumes. FORCE=1 also removes the image
+	rm -rf bin build
 	if [ -d .cache ]; then \
 		chmod -R u+w .cache 2>/dev/null || true; \
 		if ! rm -rf .cache 2>/dev/null; then \
@@ -131,35 +178,9 @@ clean:
 		$(CONTAINER_ENGINE) rmi -f $(IMAGE) >/dev/null 2>&1 || true; \
 	fi
 
-help:
+notes: ## Print the notes about Go, the cache, and the keyring
 	@printf '%s\n' \
-		'build       compile bin/gh-sweep for this machine, using a Go container' \
-		'install     install to ~/.local/bin (PREFIX=$(PREFIX))' \
-		'test        run the tests inside the Go container' \
-		'auth        gh auth login (stores the token in the system keyring)' \
-		'token       print the keyring token (gh auth token)' \
-		'run         run bin/gh-sweep (ARGS="owner/repo")' \
-		'image       build the container image with $(CONTAINER_ENGINE)' \
-		'container   run the image; passes GH_TOKEN from the keyring' \
-		'clean       remove bin/, leftover .cache, and the Go volumes' \
-		'            make clean FORCE=1 also force-removes the image and its containers' \
-		'' \
 		'Go is not installed on the host. Build and test use $(GO_IMAGE).' \
 		'The Go cache is the volumes gh-sweep-gocache and gh-sweep-gomod.' \
 		'The container cannot see the macOS Keychain or Linux keyring.' \
 		'make auth && make container ARGS="owner/repo"'
-
-# $(1) is extra container -e flags, or empty. The source tree is not written.
-define go-run
-$(CONTAINER_ENGINE) run --rm \
-	-e HOME=/tmp \
-	-e CGO_ENABLED=0 \
-	-e GOCACHE=/var/cache/gh-sweep/build \
-	-e GOMODCACHE=/var/cache/gh-sweep/mod \
-	$(1) \
-	-v gh-sweep-gocache:/var/cache/gh-sweep/build \
-	-v gh-sweep-gomod:/var/cache/gh-sweep/mod \
-	-v "$(SRC_MOUNT)" \
-	-w /src \
-	$(GO_IMAGE)
-endef

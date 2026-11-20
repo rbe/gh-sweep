@@ -2,3 +2,10 @@ bin/
 .cache/
 .DS_Store
 *.log
+
+
+# APM dependencies
+apm_modules/
+build/
+docs/adr/index.toon
+docs/skill-index.toon
