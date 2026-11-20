@@ -1,7 +1,7 @@
 ---
 id: H-2026-11-20-run-in-container
 title: make run runs the program in the container
-status: open
+status: closed
 adrs: [ADR-0002]
 skills: [plan, security, develop, shell, review, project-report]
 decisions: [D-9]
@@ -56,4 +56,4 @@ No finding. Left alone: the real image, the real keyring, and the screen in a te
 
 ## Release
 
-Not shipped yet. The owner decides.
+The owner ran `make auth`, `make run ARGS=--summary`, and a dry run on their machine, with the real image, the real keyring, and a terminal. All worked. The owner said to ship. The project has no workflow, so the Make targets of the Review section ran on the machine of this session. The slice ships with the merge of the branch `run-in-container` into `main`. The binary and the image of the project are unchanged.
