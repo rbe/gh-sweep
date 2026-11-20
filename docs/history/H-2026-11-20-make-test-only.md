@@ -1,7 +1,7 @@
 ---
 id: H-2026-11-20-make-test-only
 title: The tests run with make test only
-status: started
+status: closed
 adrs: []
 skills: [develop, review, shell, security]
 decisions: [D-6]
@@ -45,4 +45,4 @@ Left alone: ADR-0002 and D-6 have no test. Each is a rule about how to work, not
 
 ## Release
 
-Not invoked yet.
+The owner said to ship. The project has no workflow, so `make editorconfig`, `make format`, `make lint`, `make test`, `make integration`, and `make coverage` ran on this machine, and each passed. The slice ships with the merge of the branch `make-test-only` into `main`. The binary of the project is unchanged, and `make build` still writes it.
