@@ -4,7 +4,7 @@ dependencies:
 - repo_url: rbe/ralfskills
   name: ralfskills
   host: github.com
-  resolved_commit: fc754c57aec33bd389433f775f840d7a8286ae35
+  resolved_commit: 995e6b5995b30c1b3ea7c629f0ecc90f46a1ad0c
   version: unknown
   package_type: skill_bundle
   deployed_files:
@@ -64,8 +64,8 @@ dependencies:
   - .claude/skills/shell/SKILL.md
   deployed_file_hashes:
     .claude/skills/develop/SKILL.md: sha256:7ecfef70b342977112fcb44ea8debffd3225e15804cbf10ab6c6d22d3b16a470
-    .claude/skills/go/SKILL.md: sha256:b9d15d39046d78354c5d2977078e062628f1c2fe296bc1d0dec3e661cafeb1cd
-    .claude/skills/go/templates/Makefile.golang: sha256:0a884ba7894e10be0afa45975cbc6d51f15c0c3c9c61c28056c3d881da9a3df5
+    .claude/skills/go/SKILL.md: sha256:354b27eca1ec1c47aee4fdff8086a38e70019f822371203d912e2c8fd720c6d0
+    .claude/skills/go/templates/Makefile.golang: sha256:3eac0a02885c3e358bab99e37e0a997844074ec5969b2442e8458638478b2088
     .claude/skills/plan/SKILL.md: sha256:538a6f2234648961fc755aee648f6882134494d6a51d34078e9589d65e7af158
     .claude/skills/project-report/SKILL.md: sha256:458627c384f692fcd82cee01c31f8b1169abe334c78065b84af2ea27ef8ff3fc
     .claude/skills/project-report/report.mk: sha256:d285bb9a15ca02f42f89502a4cea81252cd0e7635b069357689b747d22ce8d71
@@ -79,7 +79,7 @@ dependencies:
     .claude/skills/project-report/scripts/requirements.py: sha256:42fc867b9b46fb9ac3241df5e27307128897f76cf67071869dc448a827f53741
     .claude/skills/project-report/scripts/select_tests.py: sha256:9dbfe387d1bae49270ac127c219c31ad1db34ef1a3e42b37cae37f3a08ba5fc7
     .claude/skills/project-report/scripts/test_project_report.py: sha256:f9919a692ca4e2098fbb85a3dd5a157b27ce3e48d8e10f3e1df2fb060f4b49f7
-    .claude/skills/project-setup/SKILL.md: sha256:2c1ff48620260e6ff024b8f0f41e22773c48903f7db2c10b690ab5a6066cb044
+    .claude/skills/project-setup/SKILL.md: sha256:300cceea2ed4363a254abcfa08e39e98cd97066a0f3ca0b886afdc3a7fb20fac
     .claude/skills/project-setup/podman-python.mk: sha256:8673ec9287d1daf3307e100269058655a6792608fbe129395257d8c9c7fb3f23
     .claude/skills/project-setup/project.mk: sha256:ef49e907411637ccbf4fab7cdff2008348576b5a04c721061143768a4b70ade0
     .claude/skills/project-setup/templates/CLAUDE.md: sha256:6173cf24bc09bdea077e2cf68a3483a3ae49ffe2d3e01639059083999ce30589
@@ -107,7 +107,7 @@ dependencies:
     .claude/skills/review/SKILL.md: sha256:e5da87f1c04c37c686012fade55a8cc8b81c38bb795270d2f3b17b1aa021a047
     .claude/skills/security/SKILL.md: sha256:35dbf657275989d4327f956a2b74808ca41875a12939b3f6eb4ff1f3734195ec
     .claude/skills/shell/SKILL.md: sha256:54b5a0211e948493b8b438ff67720904cd8501cf6ccb430d9a2a4458f455c400
-  content_hash: sha256:ce4bbee43a0cd0b9e303ba20275e300369c599efc31c99853c8bd46af83a2b5c
+  content_hash: sha256:0922012b185324fb3941f559355ef7536f104fc53eb8afecebc88821bed0c9f0
   skill_subset:
   - develop
   - go
@@ -155,7 +155,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:b9d15d39046d78354c5d2977078e062628f1c2fe296bc1d0dec3e661cafeb1cd
+  content_hash: sha256:354b27eca1ec1c47aee4fdff8086a38e70019f822371203d912e2c8fd720c6d0
 - kind: project-relative
   target: claude
   value: .claude/skills/go/templates/Makefile.golang
@@ -164,7 +164,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:0a884ba7894e10be0afa45975cbc6d51f15c0c3c9c61c28056c3d881da9a3df5
+  content_hash: sha256:3eac0a02885c3e358bab99e37e0a997844074ec5969b2442e8458638478b2088
 - kind: project-relative
   target: claude
   value: .claude/skills/plan
@@ -317,7 +317,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:2c1ff48620260e6ff024b8f0f41e22773c48903f7db2c10b690ab5a6066cb044
+  content_hash: sha256:300cceea2ed4363a254abcfa08e39e98cd97066a0f3ca0b886afdc3a7fb20fac
 - kind: project-relative
   target: claude
   value: .claude/skills/project-setup/podman-python.mk
