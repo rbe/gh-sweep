@@ -1,6 +1,6 @@
 ---
 name: record
-description: Assign document ids and write the board. Use before creating or editing a roadmap line, a known issue, a decision, an ADR, a proposal, or a history file, and to close a task. Reject a duplicate id, including a retired one. Write the ADR index and the decision log. Other skills invoke this skill by name.
+description: Assign document ids and write the board. Each id in running text is a link, written by make links. Use before creating or editing a roadmap line, a known issue, a decision, an ADR, a proposal, or a history file, and to close a task. Reject a duplicate id, including a retired one. Write the ADR index and the decision log. Other skills invoke this skill by name.
 ---
 
 # Record
@@ -18,7 +18,7 @@ This skill is the only writer of ids and of the board. A stage that writes a doc
 
 | Kind | Home | Id |
 | --- | --- | --- |
-| In progress | `docs/ROADMAP.md` | One line: `- H-2026-11-20-slugify`, and the proposal id when there is one. No grill |
+| In progress | `docs/ROADMAP.md` | One line: `- H-2026-11-20-slugify`, or `- H-2026-11-20-slugify P-1` when the slice started from a proposal. No grill |
 | Defect | `docs/KNOWN_ISSUES.md` | One table row. The id is `K-` plus a number, from `K-1`. Delete the row when the fix lands, then retire the id |
 | Small choice | `docs/DECISIONS.md` | One table row. The id is `D-` plus a number, from `D-1`. The status is Open or Decided. A Decided row is one sentence |
 | Architecture or development rule | `docs/adr/<id>.md` | `ADR-` plus four digits, from `ADR-0001` |
@@ -27,13 +27,22 @@ This skill is the only writer of ids and of the board. A stage that writes a doc
 
 A product repository keeps in-progress work in `docs/ROADMAP.md` and a rule in `docs/adr/`. This collection is not a product repository. Each requirement is one row in `docs/REQUIREMENTS.md`. An Open row in `docs/DECISIONS.md` is work that is not finished. A Decided row is a choice in force. This collection does not keep `docs/ROADMAP.md` or `docs/adr/`.
 
-`templates/` beside this skill has one template for each document: `ROADMAP.md`, `KNOWN_ISSUES.md`, `DECISIONS.md`, `adr.md`, `proposal.md`, and `history.md`. Copy the template at the first write, and keep its layout. The scripts read these layouts: a table row for a decision and a known issue, and a frontmatter block for an ADR, a proposal, and a history file. Write a list in the frontmatter on one line, as `skills: [a, b]`. `make ids-retire` creates `docs/ids.yaml` at the first retire. Do not write it by hand. The next number of a kind is one above the highest number of that kind in the documents and in `docs/ids.yaml`. The date in a history id is the day the file is created.
+`templates/` beside this skill has one template for each document: `ROADMAP.md`, `KNOWN_ISSUES.md`, `DECISIONS.md`, `adr.md`, `proposal.md`, and `history.md`. Copy the template at the first write, and keep its layout. This skill has no tool that writes a document. The agent writes each document by hand from its template, and `make ids` checks the ids. The scripts read these layouts: a table row for a decision and a known issue, and a frontmatter block for an ADR, a proposal, and a history file. Write a list in the frontmatter on one line, as `skills: [a, b]`. `make ids-retire` creates `docs/ids.yaml` at the first retire. Do not write it by hand. The next number of a kind is one above the highest number of that kind in the documents and in `docs/ids.yaml`. The date in a history id is the day the file is created.
 
 `plan` reads these before it asks. It does not ask a question an accepted ADR, a Decided entry, or an open proposal already answered.
 
 ## Links
 
-Keys are the plural of the kind. A document names ids. It does not build a path to another document.
+Keys are the plural of the kind. In the frontmatter and in the id cell of a table, an id is plain text. The scripts read it there.
+
+In running text, each id is a link, so a person goes from one item to the other with one click. Do not write the link by hand. Write the plain id, then run `make links`. It rewrites each document under `docs/`:
+
+- A table row gets an anchor in its id cell, as `<a id="d-9"></a>D-9`. The anchor is the id in lowercase.
+- An id of a table row becomes a link to that row, as `[D-9](../DECISIONS.md#d-9)`.
+- An id of an ADR, a proposal, or a history file becomes a link to that file, as `[ADR-0001](../adr/ADR-0001.md)`.
+- A retired id has no target and stays plain text. An id in a code span, a code block, or a heading stays plain text.
+
+`make links-check` fails when an id in running text is not a link, when a link is wrong, or when a row has no anchor. `make decision-log` and `make project-report` give each item an anchor and link each id in the generated document.
 
 ```yaml
 id: ADR-0004
@@ -47,9 +56,9 @@ issues: []
 supersedes: []
 ```
 
-A decision, a proposal, and a history file use the same keys. In a history file, `skills` lists the skills the slice used. A history file may still cite an id that was retired later.
+A decision, a proposal, and a history file use the same keys. In a history file, `skills` lists each skill the slice used: the stages, the language skills, and the subskills. A history file may still cite an id that was retired later.
 
-The open history section is the section of the stage that runs: Plan, Develop, Review, or Release. A skill that adds one line adds it there, as `python: the language skill for the Python files.` or `security: no listener, no secret.` The same step adds the skill name to `skills` in the frontmatter. `decisions`, `adrs`, `issues`, and `proposals` list the ids the slice wrote or fixed.
+The open history section is the section of the stage that runs: Plan, Develop, Review, or Release. A skill that adds one line adds it there, as `python: the language skill for the Python files.` or `security: no listener, no secret.` The same step adds the skill name to `skills` in the frontmatter. `decisions`, `adrs`, and `issues` list the ids the slice wrote, fixed, or proves with a test. `proposals` lists only the proposal the slice started from. A proposal the slice wrote for a later part is named in the Plan section.
 
 ## ADRs
 
@@ -81,6 +90,8 @@ One file per task. `plan` creates it when implementation starts. `develop` asks 
 
 When a proposal is picked up, create the history file, set `proposals:` to that id, and set the proposal status to `started`. Add one roadmap line with both ids. Do not copy the grill into the roadmap.
 
+A stage writes its section in sentences: what it did, each gate with its result, and what it left alone. It replaces `Not invoked yet.` and keeps the heading.
+
 Every history file has these sections. A missing heading is a failed step.
 
 | Section | When the stage ran | When it did not |
@@ -94,7 +105,7 @@ An agent on another task opens a history file only when an id names it.
 
 ## Closing a task
 
-`release` asks this skill to close the task, when the slice shipped and when it does not ship. A task that waits stays open.
+`release` asks this skill to close the task, when the slice shipped and when it does not ship. A task whose work waits stays open. A slice that is done and waits only for the merge of the owner is closed on its branch.
 
 1. Stop when the Plan, the Develop, or the Review section of the history file is still `Not invoked yet.` Do not take a later step. `release` writes the Release section before it asks for the close.
 2. Set the history status to `closed`. The status of a history file is `started` or `closed`.
@@ -114,7 +125,7 @@ A test names the requirement it proves with `id:` in its header or metadata. Tha
 
 Make is the interface. Python reads the frontmatter, because a makefile recipe is the wrong place for that parser. `toon` and `ids` call `$(PYTHON)` from `project-setup`. That is Podman on the machine where Make runs. The host does not need Python.
 
-Run `make toon` after a skill is installed or removed, after ADR frontmatter changes, after the requirements list changes, and before `plan`, `develop`, or `review` reads an index. Hand-editing an index is a defect.
+Run `make links` after a document under `docs/` is written or an id is retired. Run `make toon` after a skill is installed or removed, after ADR frontmatter changes, after the requirements list changes, and before `plan`, `develop`, or `review` reads an index. Hand-editing an index is a defect.
 
 | File | Columns | What it lists |
 | --- | --- | --- |
