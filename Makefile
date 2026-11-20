@@ -103,7 +103,7 @@ TEST_CHANGED_CMD = chosen=$$($(PYTHON) .claude/skills/project-report/scripts/cha
 
 include .claude/skills/project-setup/project.mk
 
-.PHONY: install image auth token run container clean notes
+.PHONY: install image auth token run clean notes
 
 SOURCES := $(wildcard *.go internal/*/*.go)
 
@@ -145,18 +145,19 @@ auth: ## gh auth login. The token goes to the system keyring
 token: ## Print the keyring token
 	@gh auth token
 
-run: bin/gh-sweep ## Run bin/gh-sweep. Set ARGS to owner/repo
-	./bin/gh-sweep $(ARGS)
-
-# Build the image if needed, then run it with a terminal and GH_TOKEN.
-container: bin/image.stamp ## Run the image with GH_TOKEN from the keyring
-	token="$${GH_TOKEN:-$$(gh auth token 2>/dev/null || true)}"; \
-	if [ -z "$$token" ]; then \
+# Build the image if needed, then run it. The host reads the token from
+# the keyring. The container gets GH_TOKEN by name, so the value is not
+# an argument of the engine. The run has a terminal when Make has one.
+run: bin/image.stamp ## Run gh-sweep in the container with GH_TOKEN from the keyring. Set ARGS to owner/repo
+	@GH_TOKEN="$${GH_TOKEN:-$$(gh auth token 2>/dev/null || true)}"; \
+	if [ -z "$$GH_TOKEN" ]; then \
 		printf '%s\n' 'No token in the keyring. Run: make auth' >&2; \
 		exit 1; \
 	fi; \
-	$(CONTAINER_ENGINE) run --rm -it \
-		-e "GH_TOKEN=$$token" \
+	export GH_TOKEN; \
+	tty=""; if [ -t 0 ] && [ -t 1 ]; then tty="-it"; fi; \
+	$(CONTAINER_ENGINE) run --rm $$tty \
+		-e GH_TOKEN \
 		-v "$(CURDIR):/work" -w /work \
 		$(IMAGE) $(ARGS)
 
@@ -183,4 +184,4 @@ notes: ## Print the notes about Go, the cache, and the keyring
 		'Go is not installed on the host. Build and test use $(GO_IMAGE).' \
 		'The Go cache is the volumes gh-sweep-gocache and gh-sweep-gomod.' \
 		'The container cannot see the macOS Keychain or Linux keyring.' \
-		'make auth && make container ARGS="owner/repo"'
+		'make auth && make run ARGS="owner/repo"'

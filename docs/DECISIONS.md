@@ -12,3 +12,4 @@ One list. An Open row is a choice that waits for an answer. A Decided row is a c
 | <a id="d-6"></a>D-6 | Decided | The tests run with `make test`, in the Go container. The project has no shell-script wrapper for a Make target. |
 | <a id="d-7"></a>D-7 | Decided | `--summary` prints one line for each repository with its number of artifacts, its number of caches, and its size, then a total line. |
 | <a id="d-8"></a>D-8 | Decided | With no repository argument, `--summary` covers the repositories of the logged-in user, and it prints a line only for a repository that has an artifact or a cache. |
+| <a id="d-9"></a>D-9 | Decided | `make run` runs the program in the container image. The host reads the token from the keyring, and the container gets `GH_TOKEN` by name. The binary on the host is for `make install` only. |

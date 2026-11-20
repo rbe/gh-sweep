@@ -34,10 +34,10 @@ The Makefile uses Podman when it is installed, and Docker otherwise (`CONTAINER_
 
 ```bash
 make auth
-make container ARGS="rbe/erechnung"
+make run ARGS="rbe/erechnung"
 ```
 
-`make auth` is `gh auth login`. Since gh 2.40 the token goes to the system keyring (macOS Keychain, or GNOME Keyring on Linux), service name `gh:github.com`, not into `~/.config/gh`. The container cannot read that keyring, so `make container` runs `gh auth token` on the host and passes the result as `GH_TOKEN`. `make token` prints the same value. With no repository argument, gh-sweep lists the repositories of the logged-in user.
+`make auth` is `gh auth login`. Since gh 2.40 the token goes to the system keyring (macOS Keychain, or GNOME Keyring on Linux), service name `gh:github.com`, not into `~/.config/gh`. The container cannot read that keyring, so `make run` runs `gh auth token` on the host and gives the container the variable `GH_TOKEN`. The value is not on a command line. `make token` prints the same value. With no repository argument, gh-sweep lists the repositories of the logged-in user.
 
 An existing `GH_TOKEN` in the environment is used as-is and the keyring is not read.
 
