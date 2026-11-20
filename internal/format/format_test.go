@@ -1,3 +1,5 @@
+// id: D-1
+
 package format
 
 import (
