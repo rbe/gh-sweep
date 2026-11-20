@@ -5,7 +5,6 @@ targets:
 dependencies:
   apm:
     - git: rbe/ralfskills
-      ref: claude/dev-framework-review-7lu8tr
       skills:
         - plan
         - develop
