@@ -11,7 +11,7 @@ A path that starts with `templates/`, and `sdlc.mk` and `container.mk`, are file
 | `templates/Makefile.node`, `templates/ci.node.yml` | Node toolchain. A Node app, image only. Node 24 is the toolchain of this template only |
 | `templates/Makefile.gradle`, `templates/ci.gradle.yml` | Gradle toolchain. A Gradle app, image plus a JAR release. The JDK image in the template is its toolchain |
 | `templates/ci.make.yml`, `templates/Makefile.image` | The workflow and the image block of a project on the Makefile of its language skill: Python, Go, or another language |
-| `templates/Containerfile.node`, `templates/Containerfile.gradle`, `templates/Containerfile.python`, `templates/Containerfile.go` | The source of `Containerfile`, by toolchain |
+| `templates/Containerfile.node`, `templates/Containerfile.gradle`, `templates/Containerfile.python`, `templates/Containerfile.golang` | The source of `Containerfile`, by toolchain |
 | `templates/pipeline-rules.md` | The source of `docs/pipeline-rules.md` |
 | `templates/containerignore`, `templates/gitignore` | The source of `.containerignore` and `.gitignore` |
 | `templates/contract-report.md` | The skeleton of report mode |

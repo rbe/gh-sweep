@@ -1,4 +1,15 @@
 .git
+.github
+.claude/
+apm_modules/
+CLAUDE.md
+docs/
+build/
+node_modules
+data/
+.env
+.env.*
+*.tar
 bin
 .cache
 *.log

@@ -7,5 +7,9 @@ bin/
 # APM dependencies
 apm_modules/
 build/
+*.tar
+data/
+.env
+.env.*
 docs/adr/index.toon
 docs/skill-index.toon
