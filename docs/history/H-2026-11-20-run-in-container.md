@@ -28,7 +28,7 @@ Boundary: the `Makefile` owns how the program starts in development. The program
 
 Pattern: one way to run. The recipe reads the secret on the host and hands it over by name.
 
-[D-9](../DECISIONS.md#d-9) records the choice.
+D-9 records the choice.
 
 ## Develop
 
@@ -36,7 +36,7 @@ Pattern: one way to run. The recipe reads the secret on the host and hands it ov
 
 `make container` is removed. `README.md`, the comment in `Containerfile`, and `make notes` name `make run`. `bin/gh-sweep` stays the binary of the host, for `make install`.
 
-No Go file changed, so the slice adds no unit test. [D-9](../DECISIONS.md#d-9) is a rule about how to work, not behaviour of the program.
+No Go file changed, so the slice adds no unit test. D-9 is a rule about how to work, not behaviour of the program.
 
 shell: the language skill for the recipe. The recipe is one POSIX shell, joined with backslashes.
 

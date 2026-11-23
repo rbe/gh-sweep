@@ -35,7 +35,7 @@ security: no secret is in the tree, a log, an error, or a fixture. The change ad
 
 The accepted ADRs for `develop`, `review`, and `go` were read. The change breaks neither. [ADR-0002](../adr/ADR-0002.md) is a divergence, and it names the rule, what differs, and why.
 
-project-report: `make project-report` wrote `build/project-report.md` with the requirements map and both reviews. The file was not hand-edited. The map names `internal/gh/os_exec_import_test.go` as the test of [ADR-0001](../adr/ADR-0001.md). The ids with no test are [ADR-0002](../adr/ADR-0002.md) and [D-6](../DECISIONS.md#d-6).
+project-report: `make project-report` wrote `build/project-report.md` with the requirements map and both reviews. The file was not hand-edited. The map names `internal/gh/os_exec_import_test.go` as the test of [ADR-0001](../adr/ADR-0001.md). The ids with no test are [ADR-0002](../adr/ADR-0002.md) and D-6.
 
 `build/coverage/diff.md` says: `No lines with coverage information in this diff.` The change touched no line of the program.
 
@@ -43,7 +43,7 @@ Each test file names an ADR or a Decided row. No id is in a path. No test is ski
 
 No finding in this change.
 
-Left alone: [ADR-0002](../adr/ADR-0002.md) and [D-6](../DECISIONS.md#d-6) have no test. Each is a rule about how to work, not behaviour of the program. The test checks the import of `os/exec`. It does not check that no package uses a GitHub client library, the second part of [ADR-0001](../adr/ADR-0001.md). `go.mod` names no such library today. `make build`, `make image`, `make container`, and `make install` were not run. The slice does not change them.
+Left alone: [ADR-0002](../adr/ADR-0002.md) and D-6 have no test. Each is a rule about how to work, not behaviour of the program. The test checks the import of `os/exec`. It does not check that no package uses a GitHub client library, the second part of [ADR-0001](../adr/ADR-0001.md). `go.mod` names no such library today. `make build`, `make image`, `make container`, and `make install` were not run. The slice does not change them.
 
 ## Release
 

@@ -1,5 +1,4 @@
 // id: ADR-0003
-// id: D-8
 
 package main
 
