@@ -102,7 +102,10 @@ TEST_CHANGED_CMD = chosen=$$($(PYTHON) .claude/skills/project-report/scripts/cha
 
 # The image block of the github-pipeline skill. OWNER and NAME come from
 # the git remote origin, so IMAGE is ghcr.io/rbe/gh-sweep.
+IMAGE ?= ghcr.io/$(OWNER)/$(NAME)
+PACKAGE ?= $(OWNER)/$(NAME)
 KEEP_VERSIONS ?= 2
+CI_IMAGE ?= localhost/$(NAME):ci
 PUBLISH_IMAGE = 1
 SDLC_JOBS = setup build test publish-container
 SDLC_CI = setup build editorconfig format lint test integration coverage report
