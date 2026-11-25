@@ -22,9 +22,9 @@ Questions and answers:
 1. Question: `--dry-run` exists, and its result screen shows the number of artifacts and caches and the size. What is missing? Answer of the owner: the summary before the confirm, output without the screen, and a list for each repository.
 2. Question: with no checklist the tool cannot ask what was picked. How is the output without the screen started, and what does it count? Options: a new flag `--summary`, `--dry-run` without a terminal, or `--dry-run` always prints. Recommended: the new flag. Answer of the owner: the new flag `--summary`. It counts everything in the named repositories. `--dry-run` keeps the checklist.
 3. Question: the wish has three parts. Which part is this slice? Answer of the owner: `--summary` with one line for each repository. The confirm screen is a proposal for later.
-4. Question: what does `--summary` do with no repository argument? Answer of the owner: it prints one line for each repository of the logged-in user that has an artifact or a cache, then the total. That matches [D-5](../DECISIONS.md#d-5).
+4. Question: what does `--summary` do with no repository argument? Answer of the owner: it prints one line for each repository of the logged-in user that has an artifact or a cache, then the total. That matches D-5.
 
-security: the questions were answered from the code and the board, because the slice adds no new boundary. What crosses a trust boundary: the `gh` command, as today. Who can call it: the person who runs the tool, with the login of `gh`. What happens when the check says no: `gh` fails, and the tool prints the error and exits with a failure. The bound on input: a repository argument is parsed as `owner/name`, as [D-3](../DECISIONS.md#d-3) says. `--summary` takes no value.
+security: the questions were answered from the code and the board, because the slice adds no new boundary. What crosses a trust boundary: the `gh` command, as today. Who can call it: the person who runs the tool, with the login of `gh`. What happens when the check says no: `gh` fails, and the tool prints the error and exits with a failure. The bound on input: a repository argument is parsed as `owner/name`, as D-3 says. `--summary` takes no value.
 
 Boundary: `main.go` owns the flag, the output stream, and the exit status. One new function builds the summary lines from the inventories. It owns no state. `internal/gh` stays the one package that starts the `gh` command, as [ADR-0001](../adr/ADR-0001.md) says. `internal/format` writes each size. `internal/ui` is not called when `--summary` is set.
 
@@ -32,7 +32,7 @@ Pattern: the summary is a pure function from the inventories to text. Loading an
 
 The choice of the flag is expensive to reverse. A flag is a public name of the tool, and a script can depend on it. The options are in answer 2. The owner chose `--summary`. [ADR-0003](../adr/ADR-0003.md) records it.
 
-Each answer a test must prove is a Decided row: [D-7](../DECISIONS.md#d-7) and [D-8](../DECISIONS.md#d-8).
+Each answer a test must prove is a Decided row: D-7 and D-8.
 
 ## Develop
 
@@ -48,7 +48,7 @@ An error from `gh` for a part of an inventory also stops the summary, because th
 
 The accepted ADRs for `go`, `develop`, and `review` were read: [ADR-0001](../adr/ADR-0001.md), [ADR-0002](../adr/ADR-0002.md), and [ADR-0003](../adr/ADR-0003.md). The change breaks none.
 
-The tests: `internal/project/summary_test.go` names [D-7](../DECISIONS.md#d-7) and gives `SummaryLines` inventories. `main_test.go` names [ADR-0003](../adr/ADR-0003.md) and [D-8](../DECISIONS.md#d-8). It runs `run` with `test/mock-gh` as the `gh` command and reads standard output, standard error, the exit status, and the list of `gh` calls.
+The tests: `internal/project/summary_test.go` names D-7 and gives `SummaryLines` inventories. `main_test.go` names [ADR-0003](../adr/ADR-0003.md) and D-8. It runs `run` with `test/mock-gh` as the `gh` command and reads standard output, standard error, the exit status, and the list of `gh` calls.
 
 The Usage section of `README.md` has the new part Summary. The usage text of the tool names `-summary`.
 
@@ -60,11 +60,11 @@ go: the language skill for the Go files. gofmt is the formatter and `go vet` is 
 
 ## Review
 
-`make lint`, `make test`, `make editorconfig`, `make format`, `make integration`, and `make coverage` passed. `make project-report` wrote `build/project-report.md` with the requirements map and both reviews. The file was not hand-edited. The map names `main_test.go` for [ADR-0003](../adr/ADR-0003.md) and [D-8](../DECISIONS.md#d-8), and `internal/project/summary_test.go` for [D-7](../DECISIONS.md#d-7).
+`make lint`, `make test`, `make editorconfig`, `make format`, `make integration`, and `make coverage` passed. `make project-report` wrote `build/project-report.md` with the requirements map and both reviews. The file was not hand-edited. The map names `main_test.go` for [ADR-0003](../adr/ADR-0003.md) and D-8, and `internal/project/summary_test.go` for D-7.
 
 project-report: `make project-report` wrote the report, and it has the three parts.
 
-security: no secret is in the tree, a fixture, or an error text. The change adds no listener. A repository argument is parsed as `owner/name`, as [D-3](../DECISIONS.md#d-3) says, and `--summary` takes no value. The program runs only the `gh` command, in `internal/gh`, and `--summary` sends no delete request. A test reads the list of `gh` calls and proves it.
+security: no secret is in the tree, a fixture, or an error text. The change adds no listener. A repository argument is parsed as `owner/name`, as D-3 says, and `--summary` takes no value. The program runs only the `gh` command, in `internal/gh`, and `--summary` sends no delete request. A test reads the list of `gh` calls and proves it.
 
 The accepted ADRs for `go`, `develop`, and `review` were read. The change breaks none. `main.go` and `internal/project` do not import `os/exec`. [ADR-0002](../adr/ADR-0002.md) is a divergence, and it names the rule, what differs, and why.
 
@@ -72,9 +72,9 @@ The accepted ADRs for `go`, `develop`, and `review` were read. The change breaks
 
 The pattern of Plan is kept. `SummaryLines` is a pure function from the inventories to text. Loading and printing are in `main.go`. Each new name is from the domain. Each test file names an ADR or a Decided row. No test is skipped. No catch is silent. No fixture has a secret or personal data.
 
-Finding, older than this change: a flag after a repository argument is not read. Location: `parseCLI` in `main.go`, and the Usage section of `README.md`. Mechanism: the Go package `flag` stops at the first argument that is not a flag, so `gh-sweep owner/repo --dry-run` takes `--dry-run` as a repository name. Evidence: `run` with the arguments `acme/widgets --summary` did not print the summary. It went to the checklist and failed with `could not open a new TTY`. The README shows `gh-sweep owner/repo --dry-run`. The check that proves a fix: a test that gives `parseCLI` the arguments `acme/widgets --dry-run` and reads one repository and the dry run. The finding waits as [K-3](../KNOWN_ISSUES.md#k-3). The new part Summary of the README says to put `--summary` before the repository names.
+Finding, older than this change: a flag after a repository argument is not read. Location: `parseCLI` in `main.go`, and the Usage section of `README.md`. Mechanism: the Go package `flag` stops at the first argument that is not a flag, so `gh-sweep owner/repo --dry-run` takes `--dry-run` as a repository name. Evidence: `run` with the arguments `acme/widgets --summary` did not print the summary. It went to the checklist and failed with `could not open a new TTY`. The README shows `gh-sweep owner/repo --dry-run`. The check that proves a fix: a test that gives `parseCLI` the arguments `acme/widgets --dry-run` and reads one repository and the dry run. The finding waits as K-3. The new part Summary of the README says to put `--summary` before the repository names.
 
-Left alone: [ADR-0001](../adr/ADR-0001.md), [ADR-0002](../adr/ADR-0002.md), and [D-6](../DECISIONS.md#d-6) have no test. [ADR-0001](../adr/ADR-0001.md) waits as K-2. [ADR-0002](../adr/ADR-0002.md) and [D-6](../DECISIONS.md#d-6) are rules about how to work. `collect` in `internal/ui` and `summaryNames` in `main.go` both name the repositories from the options. They were not joined, because Plan says that `internal/ui` is not called when `--summary` is set. The summary loads one repository after the other. `--filter` has no effect on the summary. `make image`, `make container`, and `make install` were not run. The slice does not change them.
+Left alone: [ADR-0001](../adr/ADR-0001.md), [ADR-0002](../adr/ADR-0002.md), and D-6 have no test. [ADR-0001](../adr/ADR-0001.md) waits as K-2. [ADR-0002](../adr/ADR-0002.md) and D-6 are rules about how to work. `collect` in `internal/ui` and `summaryNames` in `main.go` both name the repositories from the options. They were not joined, because Plan says that `internal/ui` is not called when `--summary` is set. The summary loads one repository after the other. `--filter` has no effect on the summary. `make image`, `make container`, and `make install` were not run. The slice does not change them.
 
 ## Release
 

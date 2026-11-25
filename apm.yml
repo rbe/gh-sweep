@@ -15,4 +15,16 @@ dependencies:
         - project-setup
         - go
         - shell
+        - jvm
+        - node
+        - python
         - security
+        - privacy
+        - ux-ui-design
+        - api-design
+        - onboard
+        - migrate-docs
+        - github-pipeline
+        - system-state-report
+        - board-merge-report
+        - board-merge

@@ -6,7 +6,6 @@ BINDIR ?= $(PREFIX)/bin
 DESTDIR ?=
 INSTALL ?= install
 
-IMAGE ?= gh-sweep
 CONTAINERFILE ?= Containerfile
 # Podman on either OS. Override with CONTAINER_ENGINE=docker.
 CONTAINER_ENGINE ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || (command -v docker >/dev/null 2>&1 && echo docker || echo podman))
@@ -83,7 +82,7 @@ endef
 # The Make contract of the project-setup skill. Each command variable is
 # set before the include. Go runs in the container, as before.
 SETUP_CMD = $(call go-run,) go mod download
-BUILD_CMD = $(MAKE) bin/gh-sweep
+BUILD_CMD = $(MAKE) bin/gh-sweep && $(MAKE) --no-print-directory image-ci
 TEST_CMD = $(call go-run,) go test ./...
 INTEGRATION_CMD = true
 # gofmt reads the package directories of the project and no other directory.
@@ -101,9 +100,20 @@ TEST_CHANGED_CMD = chosen=$$($(PYTHON) .claude/skills/project-report/scripts/cha
 	if [ -z "$$chosen" ]; then printf '%s\n' "test-changed: no test covers the changed files. make test runs the full suite."; \
 	else printf 'test-changed: %s\n' "$$chosen"; $(call go-run,) go test $$chosen; fi
 
-include .claude/skills/project-setup/project.mk
+# The image block of the github-pipeline skill. OWNER and NAME come from
+# the git remote origin, so IMAGE is ghcr.io/rbe/gh-sweep.
+IMAGE ?= ghcr.io/$(OWNER)/$(NAME)
+PACKAGE ?= $(OWNER)/$(NAME)
+KEEP_VERSIONS ?= 2
+CI_IMAGE ?= localhost/$(NAME):ci
+PUBLISH_IMAGE = 1
+SDLC_JOBS = setup build test publish-container
+SDLC_CI = setup build editorconfig format lint test integration coverage report
+SMOKE_ARGS = --help
 
-.PHONY: install image auth token run clean notes
+include .claude/skills/github-pipeline/sdlc.mk
+
+.PHONY: install auth token run clean notes
 
 SOURCES := $(wildcard *.go internal/*/*.go)
 
@@ -130,13 +140,6 @@ install: bin/gh-sweep ## Install to ~/.local/bin. PREFIX and DESTDIR work
 		esac; \
 	fi
 
-image: bin/image.stamp ## Build the container image
-
-bin/image.stamp: $(CONTAINERFILE) .containerignore go.mod go.sum $(SOURCES)
-	mkdir -p bin
-	$(CONTAINER_ENGINE) build -t $(IMAGE) -f $(CONTAINERFILE) .
-	touch $@
-
 # Log in on the host. The token goes to the system keyring, not ~/.config/gh.
 auth: ## gh auth login. The token goes to the system keyring
 	gh auth login
@@ -148,7 +151,7 @@ token: ## Print the keyring token
 # Build the image if needed, then run it. The host reads the token from
 # the keyring. The container gets GH_TOKEN by name, so the value is not
 # an argument of the engine. The run has a terminal when Make has one.
-run: bin/image.stamp ## Run gh-sweep in the container with GH_TOKEN from the keyring. Set ARGS to owner/repo
+run: image ## Run gh-sweep in the container with GH_TOKEN from the keyring. Set ARGS to owner/repo
 	@GH_TOKEN="$${GH_TOKEN:-$$(gh auth token 2>/dev/null || true)}"; \
 	if [ -z "$$GH_TOKEN" ]; then \
 		printf '%s\n' 'No token in the keyring. Run: make auth' >&2; \

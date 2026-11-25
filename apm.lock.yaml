@@ -4,19 +4,84 @@ dependencies:
 - repo_url: rbe/ralfskills
   name: ralfskills
   host: github.com
-  resolved_commit: 995e6b5995b30c1b3ea7c629f0ecc90f46a1ad0c
+  resolved_commit: 8dcd53ae7dab55b8dc2f0fb6f666888f4c1178e3
   version: unknown
   package_type: skill_bundle
   deployed_files:
+  - .claude/skills/api-design
+  - .claude/skills/api-design/SKILL.md
+  - .claude/skills/board-merge
+  - .claude/skills/board-merge-report
+  - .claude/skills/board-merge-report/SKILL.md
+  - .claude/skills/board-merge-report/merge-report.mk
+  - .claude/skills/board-merge-report/references/finding-kinds.md
+  - .claude/skills/board-merge-report/references/report-form.md
+  - .claude/skills/board-merge-report/scripts/board_numbers.py
+  - .claude/skills/board-merge-report/scripts/test_board_numbers.py
+  - .claude/skills/board-merge/SKILL.md
+  - .claude/skills/board-merge/references/recheck.md
   - .claude/skills/develop
   - .claude/skills/develop/SKILL.md
+  - .claude/skills/github-pipeline
+  - .claude/skills/github-pipeline/SKILL.md
+  - .claude/skills/github-pipeline/container.mk
+  - .claude/skills/github-pipeline/references/contract.md
+  - .claude/skills/github-pipeline/references/makefile.md
+  - .claude/skills/github-pipeline/references/setup-files.md
+  - .claude/skills/github-pipeline/references/workflow.md
+  - .claude/skills/github-pipeline/sdlc.mk
+  - .claude/skills/github-pipeline/templates/Containerfile.golang
+  - .claude/skills/github-pipeline/templates/Containerfile.gradle
+  - .claude/skills/github-pipeline/templates/Containerfile.node
+  - .claude/skills/github-pipeline/templates/Containerfile.python
+  - .claude/skills/github-pipeline/templates/Makefile.gradle
+  - .claude/skills/github-pipeline/templates/Makefile.image
+  - .claude/skills/github-pipeline/templates/Makefile.node
+  - .claude/skills/github-pipeline/templates/ci.gradle.yml
+  - .claude/skills/github-pipeline/templates/ci.make.yml
+  - .claude/skills/github-pipeline/templates/ci.node.yml
+  - .claude/skills/github-pipeline/templates/containerignore
+  - .claude/skills/github-pipeline/templates/contract-report.md
+  - .claude/skills/github-pipeline/templates/gitignore
+  - .claude/skills/github-pipeline/templates/pipeline-rules.md
   - .claude/skills/go
   - .claude/skills/go/SKILL.md
+  - .claude/skills/go/references/build.md
+  - .claude/skills/go/references/coverage.md
+  - .claude/skills/go/references/tooling.md
   - .claude/skills/go/templates/Makefile.golang
+  - .claude/skills/jvm
+  - .claude/skills/jvm/SKILL.md
+  - .claude/skills/jvm/references/gradle.md
+  - .claude/skills/jvm/references/grails.md
+  - .claude/skills/jvm/references/groovy.md
+  - .claude/skills/jvm/references/java.md
+  - .claude/skills/jvm/references/tooling.md
+  - .claude/skills/jvm/templates/Makefile.gradle
+  - .claude/skills/jvm/templates/build.gradle
+  - .claude/skills/jvm/templates/checkstyle.xml
+  - .claude/skills/jvm/templates/settings.gradle
+  - .claude/skills/migrate-docs
+  - .claude/skills/migrate-docs/SKILL.md
+  - .claude/skills/migrate-docs/migrate.mk
+  - .claude/skills/node
+  - .claude/skills/node/SKILL.md
+  - .claude/skills/node/references/coverage.md
+  - .claude/skills/node/references/frameworks.md
+  - .claude/skills/node/references/tooling.md
+  - .claude/skills/node/templates/Makefile.node
+  - .claude/skills/node/templates/eslint.config.mjs
+  - .claude/skills/node/templates/prettierignore
+  - .claude/skills/onboard
+  - .claude/skills/onboard/SKILL.md
+  - .claude/skills/onboard/references/skill-version.md
   - .claude/skills/plan
   - .claude/skills/plan/SKILL.md
+  - .claude/skills/privacy
+  - .claude/skills/privacy/SKILL.md
   - .claude/skills/project-report
   - .claude/skills/project-report/SKILL.md
+  - .claude/skills/project-report/references/report-contents.md
   - .claude/skills/project-report/report.mk
   - .claude/skills/project-report/scripts/changed_tests.py
   - .claude/skills/project-report/scripts/cover_tests.py
@@ -30,26 +95,46 @@ dependencies:
   - .claude/skills/project-report/scripts/test_project_report.py
   - .claude/skills/project-setup
   - .claude/skills/project-setup/SKILL.md
+  - .claude/skills/project-setup/contract.mk
+  - .claude/skills/project-setup/doctor.mk
+  - .claude/skills/project-setup/old-board.mk
   - .claude/skills/project-setup/podman-python.mk
   - .claude/skills/project-setup/project.mk
+  - .claude/skills/project-setup/references/fail-list.md
+  - .claude/skills/project-setup/references/makefile.md
+  - .claude/skills/project-setup/references/paths-and-shipment.md
+  - .claude/skills/project-setup/references/setup-cases.md
+  - .claude/skills/project-setup/skills.mk
   - .claude/skills/project-setup/templates/CLAUDE.md
   - .claude/skills/project-setup/templates/contract-report.md
   - .claude/skills/project-setup/templates/editorconfig
   - .claude/skills/project-setup/test-changed.mk
   - .claude/skills/project-setup/tools.mk
+  - .claude/skills/python
+  - .claude/skills/python/SKILL.md
+  - .claude/skills/python/references/frameworks.md
+  - .claude/skills/python/references/makefile.md
+  - .claude/skills/python/references/tooling.md
+  - .claude/skills/python/templates/Makefile.python
+  - .claude/skills/python/templates/coveragerc
   - .claude/skills/record
   - .claude/skills/record/SKILL.md
   - .claude/skills/record/index.mk
+  - .claude/skills/record/references/adr.md
+  - .claude/skills/record/references/close.md
+  - .claude/skills/record/references/documents.md
+  - .claude/skills/record/references/history.md
+  - .claude/skills/record/references/id-kinds.md
+  - .claude/skills/record/references/indexes.md
+  - .claude/skills/record/references/test-ids.md
   - .claude/skills/record/scripts/adr_index.py
-  - .claude/skills/record/scripts/decision_log.py
   - .claude/skills/record/scripts/ids.py
   - .claude/skills/record/scripts/links.py
+  - .claude/skills/record/scripts/req.py
   - .claude/skills/record/scripts/requirements_index.py
   - .claude/skills/record/scripts/skill_index.py
   - .claude/skills/record/scripts/test_record.py
   - .claude/skills/record/scripts/toon.py
-  - .claude/skills/record/templates/DECISIONS.md
-  - .claude/skills/record/templates/KNOWN_ISSUES.md
   - .claude/skills/record/templates/ROADMAP.md
   - .claude/skills/record/templates/adr.md
   - .claude/skills/record/templates/history.md
@@ -62,64 +147,267 @@ dependencies:
   - .claude/skills/security/SKILL.md
   - .claude/skills/shell
   - .claude/skills/shell/SKILL.md
+  - .claude/skills/system-state-report
+  - .claude/skills/system-state-report/SKILL.md
+  - .claude/skills/system-state-report/references/cold-reader.md
+  - .claude/skills/ux-ui-design
+  - .claude/skills/ux-ui-design/SKILL.md
   deployed_file_hashes:
-    .claude/skills/develop/SKILL.md: sha256:7ecfef70b342977112fcb44ea8debffd3225e15804cbf10ab6c6d22d3b16a470
-    .claude/skills/go/SKILL.md: sha256:354b27eca1ec1c47aee4fdff8086a38e70019f822371203d912e2c8fd720c6d0
-    .claude/skills/go/templates/Makefile.golang: sha256:3eac0a02885c3e358bab99e37e0a997844074ec5969b2442e8458638478b2088
-    .claude/skills/plan/SKILL.md: sha256:538a6f2234648961fc755aee648f6882134494d6a51d34078e9589d65e7af158
-    .claude/skills/project-report/SKILL.md: sha256:458627c384f692fcd82cee01c31f8b1169abe334c78065b84af2ea27ef8ff3fc
-    .claude/skills/project-report/report.mk: sha256:d285bb9a15ca02f42f89502a4cea81252cd0e7635b069357689b747d22ce8d71
+    .claude/skills/api-design/SKILL.md: sha256:888eb95603786cf810366113acf57a508bf697a897716f63276535677fd7511d
+    .claude/skills/board-merge-report/SKILL.md: sha256:0fc075c20f0523b68d13246ced2842303cdff0070cad426e208d26904f253b6d
+    .claude/skills/board-merge-report/merge-report.mk: sha256:4680d57022131e2c189f52a420ab73149ba7dd99bce20a436c3f2811a51cf43e
+    .claude/skills/board-merge-report/references/finding-kinds.md: sha256:d0e1255590c9de12da39af089874b73a0c00336a0649431744c9f5daa83b3f89
+    .claude/skills/board-merge-report/references/report-form.md: sha256:807a5c394a72d78009f119c5fcf4548de07b06e7c4c49fd811c14a4e6c2fd37d
+    .claude/skills/board-merge-report/scripts/board_numbers.py: sha256:6d59d7137d18488cc62a2ff2e5aa44c8e63ac85a0446f4a041e6e2a5bf7cfde1
+    .claude/skills/board-merge-report/scripts/test_board_numbers.py: sha256:4704cbd88deaa3d2652247813d95b6b200229ab17971be151a1fa9c805792c56
+    .claude/skills/board-merge/SKILL.md: sha256:1354632480b38e6cb8294db72099d22752c084e4fc7099e3a002ad0ed00333ba
+    .claude/skills/board-merge/references/recheck.md: sha256:fcb425733570a28baf87362f9d0d0d557b9bc5e4934f7d1ffe51cb219360f457
+    .claude/skills/develop/SKILL.md: sha256:51dc343d80163907782f8acf8cb0eaaeaa98b4d8b3513da5a6a6efec269a5056
+    .claude/skills/github-pipeline/SKILL.md: sha256:50af33235e9316d517ebebf7ac91ebbd2d984034aadec113488e5cfcac8b5999
+    .claude/skills/github-pipeline/container.mk: sha256:145277385b55ad737ab97bd5aa25ff427ccb517abca22fc471fb16d5f18ed18e
+    .claude/skills/github-pipeline/references/contract.md: sha256:dee842e5646e82977afea3347f555500bc4b3c07e2720edcccdf7669d3b8b88f
+    .claude/skills/github-pipeline/references/makefile.md: sha256:fa072ad59229a146d681e637e6fb09e8ec7c2cb7d0f1bc12906cd733595e5dd6
+    .claude/skills/github-pipeline/references/setup-files.md: sha256:60f8b9c2f6ab611649620494ffb88b785247b0f2b9848cfdf513b08390d2abfc
+    .claude/skills/github-pipeline/references/workflow.md: sha256:9270318b3fd42a06a72f6026beed9e568ebff76c8a343e89fd1070f02c27fbac
+    .claude/skills/github-pipeline/sdlc.mk: sha256:6a8c9d9e0f8f2f5a9079c844a815983d64c9328bab6075b660c511c4ec634718
+    .claude/skills/github-pipeline/templates/Containerfile.golang: sha256:5fc4a4dff9d283092c9c4537372b5b97261adaf8ba91a0dd9488d337940277a6
+    .claude/skills/github-pipeline/templates/Containerfile.gradle: sha256:124128b9c3d49c18236f3e654bffbb243e4f15a30795222f2efd61891008e709
+    .claude/skills/github-pipeline/templates/Containerfile.node: sha256:b32321c56716da764d3fc5ca0091e0af4fc251316b1dafde2e404c851ed651e8
+    .claude/skills/github-pipeline/templates/Containerfile.python: sha256:b757a04c8f8c97533cd3d2ea99039b25dc1dd1eb33ad5fd5f2b59da4bdcc1505
+    .claude/skills/github-pipeline/templates/Makefile.gradle: sha256:2e37d0e0bbcafd7b0b45b6d8f58b97492efe8ec11c7abae7ec299f6cedff8655
+    .claude/skills/github-pipeline/templates/Makefile.image: sha256:6c9957cd276927346aa6e65ff2ea1359ff699f649ed117ac6f6eae0d0c5a525a
+    .claude/skills/github-pipeline/templates/Makefile.node: sha256:e962e3f1174b237c562c8864e2787cc1d7d0bb721fd98e78845cd10c3c8475ea
+    .claude/skills/github-pipeline/templates/ci.gradle.yml: sha256:041c8d78d84ef630a2754887c1758dc68881b2bb1c2103c03b6f851d474ae483
+    .claude/skills/github-pipeline/templates/ci.make.yml: sha256:95c48f2d46758be9e54359cd84fc4afb745b13bb48666dbcf40b58633e48c88a
+    .claude/skills/github-pipeline/templates/ci.node.yml: sha256:00cf2407f3e10e3f3a12aca8cde9319f2eeb3bb5597a680fa43aaed5d7839602
+    .claude/skills/github-pipeline/templates/containerignore: sha256:f87cefc60e7a29b31fdac84ee03b5b3d5b005189dbe7b8e26878e1270b363dd3
+    .claude/skills/github-pipeline/templates/contract-report.md: sha256:ef042c93d2b9230b1c2a12159d91096065dce30cc1a6347a378f72252e5e7981
+    .claude/skills/github-pipeline/templates/gitignore: sha256:6b9bb2afbdfa16be168f53c2aed3480019ed3154f6f2b462572143e474c9fbec
+    .claude/skills/github-pipeline/templates/pipeline-rules.md: sha256:20e2ae78d75922b046b8c9f579c81062d5ea7e96087de43812dbc36db0d79f0a
+    .claude/skills/go/SKILL.md: sha256:d5cbd42041511cdae5cbfb54e78c4274a81436bc250d2d01ae5ccea05ad28acb
+    .claude/skills/go/references/build.md: sha256:7ddd27e0150841d76546c45b1259072b8c1358f5ca4c46a5eb1a38a5bcbd67bd
+    .claude/skills/go/references/coverage.md: sha256:e9211053e1424f165cb427ff2876c289ab0f3613e1910268905f59c716f14804
+    .claude/skills/go/references/tooling.md: sha256:420605d003229d99af0819757de523806cc24303ccb1797b23e877fc2882191c
+    .claude/skills/go/templates/Makefile.golang: sha256:934bb7d1b71bfbd22de6d77bca4363657f1cf77c747c4e1146cabba0cc062df2
+    .claude/skills/jvm/SKILL.md: sha256:bc3be3d45d07d89a2f33cbbec1d8c7471788cf44209d5f09cb55bccee3a42a11
+    .claude/skills/jvm/references/gradle.md: sha256:6b1dfc461b4b6c04efe222219440189e44bcf017610473da101cd3415c36a140
+    .claude/skills/jvm/references/grails.md: sha256:5e0378a59c9994c6dfa7cae866dbb8286c2f6e82b7548f9c22d9c60eea085884
+    .claude/skills/jvm/references/groovy.md: sha256:a5204ee063fffc8ccfb8a84aa8e8e0558577075bf066307bf8ee28de689de355
+    .claude/skills/jvm/references/java.md: sha256:d016f2939dafc2546c70161944e1c551354138a234668557b88bbdc2c8a59992
+    .claude/skills/jvm/references/tooling.md: sha256:38887f63c04578d1d4b40e97cca9c7b63f6e730b8de8e48da566d238721818bf
+    .claude/skills/jvm/templates/Makefile.gradle: sha256:e004ae7a3b8ba247e57212716bc46020f1a84e71cfa0625df96db463cd40926f
+    .claude/skills/jvm/templates/build.gradle: sha256:d4c1ca27091357c16aa8878fbbf23903a1855ce8953443bc07e8fe06774bf950
+    .claude/skills/jvm/templates/checkstyle.xml: sha256:9b2a4b32d03d2ef0071d9fd88b1d38dac197e97df97f4ea88045cc054e90e2ba
+    .claude/skills/jvm/templates/settings.gradle: sha256:fe0c4de1a8cbd468691be72bb45c23df8cc88666624b2c578572cd11efcaf1a2
+    .claude/skills/migrate-docs/SKILL.md: sha256:3c0cafd3ed163befa72b8ed79d6ce397fb9027b8d93a7212727570f91a4c09e4
+    .claude/skills/migrate-docs/migrate.mk: sha256:0b457e4888ad8b491e51831ed8b8f32a8750f65a3f076640a88861be34913c2b
+    .claude/skills/node/SKILL.md: sha256:cb2c3ec85d37715b081119e1c9a665ce158cc60b74d2748e57605b3810064a5b
+    .claude/skills/node/references/coverage.md: sha256:0ca7735862b43d274621de5fa9316853605ab2b71d2aacd7906e1d533de6bc3e
+    .claude/skills/node/references/frameworks.md: sha256:b7f26a18838b8c927c091e55ba150006032c879c7049615372861e9bc62fa3a9
+    .claude/skills/node/references/tooling.md: sha256:961f9ea7347212769fe7c9dd0816e8337f4ccaa248724f5ec16cc5d2edf3b0cf
+    .claude/skills/node/templates/Makefile.node: sha256:b2c6d674efec14cc0d94fa5fd1a7dc8078bcd2b7d1927e23908cd1140b6af5d6
+    .claude/skills/node/templates/eslint.config.mjs: sha256:6cbf3cf6792c36613d596ee07d2b8d7513bf49b3a64c8413ef635a3650be4b9a
+    .claude/skills/node/templates/prettierignore: sha256:a5a94b823165a2b40a0da8954feec4d1587acea3a90fc374fe2667a88425ac91
+    .claude/skills/onboard/SKILL.md: sha256:5eba323a8e04410b96711f4c2326f4c0e0b8cf91c191fccff6e2db7247198cc4
+    .claude/skills/onboard/references/skill-version.md: sha256:98a682cadb3e093a0842bf9fda49051a9c2e295a600e04256ef49b0a78872976
+    .claude/skills/plan/SKILL.md: sha256:6c083f631c578370642894e7cc3729afa4f3cce516e8acec29de2c95b19940f8
+    .claude/skills/privacy/SKILL.md: sha256:068f3c248626158e427ac56301aab873adfecd04ba9373fe4768b308c1872a7d
+    .claude/skills/project-report/SKILL.md: sha256:7e1be3312e111ba9eb57e6eef74cf200b322b34f8e04dbada0158de76161c925
+    .claude/skills/project-report/references/report-contents.md: sha256:a776051a575d49ebb16610c5b6730e26fa1996dd81dd94aea974c61b06b9d881
+    .claude/skills/project-report/report.mk: sha256:6a28148d3304941c95c5bd1c70344260794aa016dd3a80b31b1e8c14463d1afc
     .claude/skills/project-report/scripts/changed_tests.py: sha256:be3602c9ad8e79efa289cd0245d61a3dec916fb86e3c8fa673aae72dd6a81304
-    .claude/skills/project-report/scripts/cover_tests.py: sha256:3e4f12ba8faabb6976692a76ad2411428b51d8c697392c37ea922ae6059c7cdd
+    .claude/skills/project-report/scripts/cover_tests.py: sha256:0f7afe55e38cbe4c17251b46631d5f671cb183c4a6033fe158f968970543d514
     .claude/skills/project-report/scripts/go_cover_map.py: sha256:1c92e00c6cd7a8d92f60f012bb80f214be0ee366c4f2435c7bb4a77e53db2283
     .claude/skills/project-report/scripts/jacoco_cover_map.py: sha256:99fa9b93cd159bf99442b5d757f3a1bafb32c98d8af4e9a01a4b72df9ed349b4
     .claude/skills/project-report/scripts/node_cover_map.py: sha256:4e35e1765db959d18a996e48141cd718f223877c6ae0e0a15ffc9691606d0eaa
-    .claude/skills/project-report/scripts/project_report.py: sha256:b1e2669ff295882b20ca48cca504815ec25e7a3369558f3d63d1c4797371fb3a
-    .claude/skills/project-report/scripts/report_links.py: sha256:250d1a6f822c61050fe7c5d9b88f9438e4cfa8dda8a82b599ea05011c9759b3d
-    .claude/skills/project-report/scripts/requirements.py: sha256:42fc867b9b46fb9ac3241df5e27307128897f76cf67071869dc448a827f53741
+    .claude/skills/project-report/scripts/project_report.py: sha256:a7509c1172a062596398a5eb0d3e8dfd5f811437394af89693b089c31752963d
+    .claude/skills/project-report/scripts/report_links.py: sha256:09ea02d0a170d8f2e1f941bc52cf2613ad783de0915c332f846af7923a27e265
+    .claude/skills/project-report/scripts/requirements.py: sha256:11f515629f8cbb4019d5bac6afe02c31102542b45777da1b353d07fe73be212f
     .claude/skills/project-report/scripts/select_tests.py: sha256:9dbfe387d1bae49270ac127c219c31ad1db34ef1a3e42b37cae37f3a08ba5fc7
-    .claude/skills/project-report/scripts/test_project_report.py: sha256:f9919a692ca4e2098fbb85a3dd5a157b27ce3e48d8e10f3e1df2fb060f4b49f7
-    .claude/skills/project-setup/SKILL.md: sha256:300cceea2ed4363a254abcfa08e39e98cd97066a0f3ca0b886afdc3a7fb20fac
-    .claude/skills/project-setup/podman-python.mk: sha256:8673ec9287d1daf3307e100269058655a6792608fbe129395257d8c9c7fb3f23
-    .claude/skills/project-setup/project.mk: sha256:ef49e907411637ccbf4fab7cdff2008348576b5a04c721061143768a4b70ade0
-    .claude/skills/project-setup/templates/CLAUDE.md: sha256:6173cf24bc09bdea077e2cf68a3483a3ae49ffe2d3e01639059083999ce30589
-    .claude/skills/project-setup/templates/contract-report.md: sha256:8486b1f897b2422e7c5956146796f7152b35cc7bb23598a839471036ecfebcea
+    .claude/skills/project-report/scripts/test_project_report.py: sha256:15586a6e1895cc5f7784c108a2c86ace1e4f9fe3f6f1005efe0a3e6912961fe7
+    .claude/skills/project-setup/SKILL.md: sha256:31c53270b4c5ec746eb3aa48f284ed6f85b19b397013109bd6765e93e424ed8d
+    .claude/skills/project-setup/contract.mk: sha256:0d02c5782edd4397b8b934d9f737a2acb9d8298999d266550ae069ef6975d683
+    .claude/skills/project-setup/doctor.mk: sha256:bc6e68894704c0eb5aae8de47349d0d47c3a41a475d1ec6987a10b90d6c570ed
+    .claude/skills/project-setup/old-board.mk: sha256:89759e5362141d55afc7fc769b11f30521c311004ac73fd9780b52a93362b78b
+    .claude/skills/project-setup/podman-python.mk: sha256:c6d70fdd171ef8ed3388839687cf81d49c9ec2e3dd8b79820bfe697b56d63cc2
+    .claude/skills/project-setup/project.mk: sha256:6300ec9d086eed8593d83e867d15b9448c86a4ba56f69fe7676a365102587068
+    .claude/skills/project-setup/references/fail-list.md: sha256:bf624165047e9a8f71851da8e647e25d340ed2f20f3f015f099ba7a4ad3abc00
+    .claude/skills/project-setup/references/makefile.md: sha256:f655fc3d5b17e4702cb33af20eaaf6872fb6ec4b2ec947ff7e1abbe6fa0078ae
+    .claude/skills/project-setup/references/paths-and-shipment.md: sha256:723e21fd8d24eb614d36fcbcdf0fdf48f11bde9ef811b2668bdb2db579393be6
+    .claude/skills/project-setup/references/setup-cases.md: sha256:36d47a87dce16ca7702dede009772a37b09e50eadb7a3015e5bf16d3e20aa55c
+    .claude/skills/project-setup/skills.mk: sha256:2d46631cc00a1719ccb1adfaebcc5b9236c51c7cad60d9e98c36b1c2ef916e6f
+    .claude/skills/project-setup/templates/CLAUDE.md: sha256:d14724eff9b7db39cbbd0c7df88903208beb085563ce860a71143815db5ee0b6
+    .claude/skills/project-setup/templates/contract-report.md: sha256:e21c0532a6c78d1c38f0f99a35e07d989f24071b8693578f099e992ead22fc2e
     .claude/skills/project-setup/templates/editorconfig: sha256:cdf9534897ef3cd9b2fd01c250898417616ae2dba73f98bfca9e993e91ce3caa
-    .claude/skills/project-setup/test-changed.mk: sha256:6e453fec1ee5ada5206dd86288b160c0527043d96d6d01fb3b75e575e4047bc7
-    .claude/skills/project-setup/tools.mk: sha256:3f1685fedf2f32fd9b2aba9d265edbcc4e7781691170f8109d647229c7f64c42
-    .claude/skills/record/SKILL.md: sha256:62882f68c9e3dfaa1b7a2c1258530db8d3fddf8b8d5092713a48ff164c93d046
-    .claude/skills/record/index.mk: sha256:b354741fd3b570a3aa53dcd333af905abccf31abb0770f50e112fa52a619b568
-    .claude/skills/record/scripts/adr_index.py: sha256:0b6e29b3c519e554dab5e30521cb03da46c63154bf2221ae2e4cb98ef2b8583f
-    .claude/skills/record/scripts/decision_log.py: sha256:cc6b8bb655b2f7db4db1a7afe45cf20a8265d382c5e59cf3e43eee3df402f791
-    .claude/skills/record/scripts/ids.py: sha256:82d3692bdd52b8aa009827a009cf93398095d202234ba86d82a1873d3e6e5143
-    .claude/skills/record/scripts/links.py: sha256:c0a079fb87b1dff83b6c7c3063f3bd92a35103c936d82df229745024d2ddc3c6
-    .claude/skills/record/scripts/requirements_index.py: sha256:f7236bb00cf70931ab508d932eb369510eca8c2757612c12ebddf4cd8f696398
+    .claude/skills/project-setup/test-changed.mk: sha256:34d24dca8c2ac72d992a5874ef48780b6981b57d9bc04e6155700a9b179ad68b
+    .claude/skills/project-setup/tools.mk: sha256:813fac2fedbcd7b6b0245421282a4bc12e1a5aa53958e97082dc07605d95c446
+    .claude/skills/python/SKILL.md: sha256:1854d55107d8e066f114c596a50916b59e38ecbd30e3cc97f5822cf4cec9da47
+    .claude/skills/python/references/frameworks.md: sha256:f6d298f6edca46b1486ff86108dcc38adced69929f6da4c94a701d1800cbf341
+    .claude/skills/python/references/makefile.md: sha256:9cd5699fc1705db0600347fd21aef80e45603e5e1d306755955e2007636f374c
+    .claude/skills/python/references/tooling.md: sha256:0e882bea7075e75725374fe421fc9bfcce164d08e3b1a534c6b2fb25eb5206b0
+    .claude/skills/python/templates/Makefile.python: sha256:a4de8f98a1ff38dada0fabf14d594cb630cf89f18b1669913e43c4eeca790741
+    .claude/skills/python/templates/coveragerc: sha256:a8136d55d06b47b6d8836cf381907aaec8733cdf8c27a637df05f8a4eef0bfb3
+    .claude/skills/record/SKILL.md: sha256:5468150c43fa654b7ddc39c2c69fee368e40788a93b686eb80e0b607ac250048
+    .claude/skills/record/index.mk: sha256:cde0f630a1436da29522ab11b3bf48ce28fb2f85064f1e1670f57f9b4838bb37
+    .claude/skills/record/references/adr.md: sha256:cf375028e0d7126a684d9d0181bb8719d39912d10af1356c7c3a78505ab8ac6b
+    .claude/skills/record/references/close.md: sha256:c572829311cb5912680d86f13e1a69c18fef22b23827d6b9a38c25fb333ac2f6
+    .claude/skills/record/references/documents.md: sha256:595571b35fbd1a6850f7e885006577cb9467a03a60b0d7421a5ff3283ca33257
+    .claude/skills/record/references/history.md: sha256:db9e2e9e2fd485b104d16905538505d8c29fee205271af6d945384426720e04c
+    .claude/skills/record/references/id-kinds.md: sha256:800c5858d1325486c3baf7143efa1a3712f172e68825e79ec2e2b84824876d47
+    .claude/skills/record/references/indexes.md: sha256:bdbf91b878f575d165d407ade5a6fca6749919ad7490f318a2b93f5f0567e5ce
+    .claude/skills/record/references/test-ids.md: sha256:199f4915f9845e995b297b9a721ba49e52e218740c03b321d8e451adfc212f24
+    .claude/skills/record/scripts/adr_index.py: sha256:699fa03e935c434ce948fb5fdcf24d9a29027f0a5f3a5533346d9d0a589ce2bf
+    .claude/skills/record/scripts/ids.py: sha256:ab3f0c4e9d6d24d8f6362e3804c0355750f073d9fdfe8d80708cfce1b775739d
+    .claude/skills/record/scripts/links.py: sha256:f19e2355f340f04cb83b6dad307f66889da83be8d93c0fe51ef08df0b490e706
+    .claude/skills/record/scripts/req.py: sha256:1a58cba87c88d0de8c61cc6abef67f309094a2594b2918bab58168d8f64b1161
+    .claude/skills/record/scripts/requirements_index.py: sha256:f5d2d356d982e79fc08b91286604a9c09b8e03af7c936a247a5a696ffec811bd
     .claude/skills/record/scripts/skill_index.py: sha256:c085172ecc906c96ab4b4c17bc2795e1f026baa0f0bdaa34e0399550ca713bdb
-    .claude/skills/record/scripts/test_record.py: sha256:8fc0b47c3e36eadc1285f62c7c7d34c9fb41ace397264114184761eb996bb4a6
-    .claude/skills/record/scripts/toon.py: sha256:ba5ef6a7195f19263c30eeac8542935419b438f94eaf0a76ebf357deacea65b4
-    .claude/skills/record/templates/DECISIONS.md: sha256:1840dc1e3a3dd2800ace78ad20d2b436dd50067278fb6e99f14d56ab67273b2e
-    .claude/skills/record/templates/KNOWN_ISSUES.md: sha256:48cb5092bbc7e5ca9e2c6464e81d6ff9228bb6e74c9f9af3f6f7ed8d9102acd5
-    .claude/skills/record/templates/ROADMAP.md: sha256:5d289f6bcdeadd3f4a1320ab84f2e33e99f865f04b38607af51289d1dd9e13db
-    .claude/skills/record/templates/adr.md: sha256:3c0ca811c0ce0ff35e21b6f23cd0e15328bcb7b12741001120bc351f1ec7c6d6
-    .claude/skills/record/templates/history.md: sha256:23782dffe54615444de3ae7003a2de2933236e8ddedb7a19b77c3a4e40c3d851
-    .claude/skills/record/templates/proposal.md: sha256:032e6b9f5ae321db44b352f03186b5d4d127eb52b4f2748cc3692630da9020be
-    .claude/skills/release/SKILL.md: sha256:53bc3dc004313d6507bd4e3ba74b21fde53363cf40d7822cf51d67c65430ce0a
-    .claude/skills/review/SKILL.md: sha256:e5da87f1c04c37c686012fade55a8cc8b81c38bb795270d2f3b17b1aa021a047
-    .claude/skills/security/SKILL.md: sha256:35dbf657275989d4327f956a2b74808ca41875a12939b3f6eb4ff1f3734195ec
-    .claude/skills/shell/SKILL.md: sha256:54b5a0211e948493b8b438ff67720904cd8501cf6ccb430d9a2a4458f455c400
-  content_hash: sha256:0922012b185324fb3941f559355ef7536f104fc53eb8afecebc88821bed0c9f0
+    .claude/skills/record/scripts/test_record.py: sha256:897fb6b45312bc1e8442c87bb82b7383ad6283bdb6b8630e5f7ec15c29579a7f
+    .claude/skills/record/scripts/toon.py: sha256:27ba4a36c25b29ff49d5018a4ce4a2ea8bf952205029aadfaa2faca9aefe3488
+    .claude/skills/record/templates/ROADMAP.md: sha256:c9bd92cf283b9acb130aff9e227732c63c776bb6e6f8f36683e6975dc4fe4ca6
+    .claude/skills/record/templates/adr.md: sha256:5b8497879cef6382ed4945d24a12ec4a7bd3e9628075229230e0e85b67f0bcf4
+    .claude/skills/record/templates/history.md: sha256:401fd1c1f07bf303560882c0c61b5a37d51fd63622bff8122bd5789e44ce2432
+    .claude/skills/record/templates/proposal.md: sha256:c94443d26ffc52cc71b5c14aa63c67bb3bb521135cea658c64cdf72d0816907d
+    .claude/skills/release/SKILL.md: sha256:887aacccdf5e9d09b0473231ac48004c22ff157eeee8f9964b1f54124f78551a
+    .claude/skills/review/SKILL.md: sha256:5da655fb4d156867dcb646046d3c95b68a8ac449cc18e8836a0b79ed1f529e9c
+    .claude/skills/security/SKILL.md: sha256:4cd47ed000d20e2678e60214e37cb7e53c7d3b404d364e47e769c124a1700c31
+    .claude/skills/shell/SKILL.md: sha256:3e33956ab7de3e139dc3b54d14912435711467177f70bf33d7fc263f66c116ac
+    .claude/skills/system-state-report/SKILL.md: sha256:c74624b6a399fe407ba7e3929096f63e8493615629c776dc3b4266f27c645989
+    .claude/skills/system-state-report/references/cold-reader.md: sha256:ed50761d096ae7e2b8f65888d7b76fc64a3cde0224d736f4f9b3fe453447c7ea
+    .claude/skills/ux-ui-design/SKILL.md: sha256:1ef23b6707f682c5f0ff6fe28fea774db0e618924a1750d9f60eebc8b3ac2abc
+  content_hash: sha256:3f90ffb8cf8da386840b349a5aca94c1dd10c377113028586b861b1311ecfb30
   skill_subset:
+  - api-design
+  - board-merge
+  - board-merge-report
   - develop
+  - github-pipeline
   - go
+  - jvm
+  - migrate-docs
+  - node
+  - onboard
   - plan
+  - privacy
   - project-report
   - project-setup
+  - python
   - record
   - release
   - review
   - security
   - shell
+  - system-state-report
+  - ux-ui-design
 deployments:
+- kind: project-relative
+  target: claude
+  value: .claude/skills/api-design
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/api-design/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:888eb95603786cf810366113acf57a508bf697a897716f63276535677fd7511d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge-report
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge-report/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:0fc075c20f0523b68d13246ced2842303cdff0070cad426e208d26904f253b6d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge-report/merge-report.mk
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:4680d57022131e2c189f52a420ab73149ba7dd99bce20a436c3f2811a51cf43e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge-report/references/finding-kinds.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:d0e1255590c9de12da39af089874b73a0c00336a0649431744c9f5daa83b3f89
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge-report/references/report-form.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:807a5c394a72d78009f119c5fcf4548de07b06e7c4c49fd811c14a4e6c2fd37d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge-report/scripts/board_numbers.py
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:6d59d7137d18488cc62a2ff2e5aa44c8e63ac85a0446f4a041e6e2a5bf7cfde1
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge-report/scripts/test_board_numbers.py
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:4704cbd88deaa3d2652247813d95b6b200229ab17971be151a1fa9c805792c56
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:1354632480b38e6cb8294db72099d22752c084e4fc7099e3a002ad0ed00333ba
+- kind: project-relative
+  target: claude
+  value: .claude/skills/board-merge/references/recheck.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:fcb425733570a28baf87362f9d0d0d557b9bc5e4934f7d1ffe51cb219360f457
 - kind: project-relative
   target: claude
   value: .claude/skills/develop
@@ -137,7 +425,205 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:7ecfef70b342977112fcb44ea8debffd3225e15804cbf10ab6c6d22d3b16a470
+  content_hash: sha256:51dc343d80163907782f8acf8cb0eaaeaa98b4d8b3513da5a6a6efec269a5056
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:50af33235e9316d517ebebf7ac91ebbd2d984034aadec113488e5cfcac8b5999
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/container.mk
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:145277385b55ad737ab97bd5aa25ff427ccb517abca22fc471fb16d5f18ed18e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/references/contract.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:dee842e5646e82977afea3347f555500bc4b3c07e2720edcccdf7669d3b8b88f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/references/makefile.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:fa072ad59229a146d681e637e6fb09e8ec7c2cb7d0f1bc12906cd733595e5dd6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/references/setup-files.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:60f8b9c2f6ab611649620494ffb88b785247b0f2b9848cfdf513b08390d2abfc
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/references/workflow.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:9270318b3fd42a06a72f6026beed9e568ebff76c8a343e89fd1070f02c27fbac
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/sdlc.mk
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:6a8c9d9e0f8f2f5a9079c844a815983d64c9328bab6075b660c511c4ec634718
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/Containerfile.golang
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:5fc4a4dff9d283092c9c4537372b5b97261adaf8ba91a0dd9488d337940277a6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/Containerfile.gradle
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:124128b9c3d49c18236f3e654bffbb243e4f15a30795222f2efd61891008e709
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/Containerfile.node
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:b32321c56716da764d3fc5ca0091e0af4fc251316b1dafde2e404c851ed651e8
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/Containerfile.python
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:b757a04c8f8c97533cd3d2ea99039b25dc1dd1eb33ad5fd5f2b59da4bdcc1505
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/Makefile.gradle
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:2e37d0e0bbcafd7b0b45b6d8f58b97492efe8ec11c7abae7ec299f6cedff8655
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/Makefile.image
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:6c9957cd276927346aa6e65ff2ea1359ff699f649ed117ac6f6eae0d0c5a525a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/Makefile.node
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:e962e3f1174b237c562c8864e2787cc1d7d0bb721fd98e78845cd10c3c8475ea
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/ci.gradle.yml
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:041c8d78d84ef630a2754887c1758dc68881b2bb1c2103c03b6f851d474ae483
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/ci.make.yml
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:95c48f2d46758be9e54359cd84fc4afb745b13bb48666dbcf40b58633e48c88a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/ci.node.yml
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:00cf2407f3e10e3f3a12aca8cde9319f2eeb3bb5597a680fa43aaed5d7839602
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/containerignore
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:f87cefc60e7a29b31fdac84ee03b5b3d5b005189dbe7b8e26878e1270b363dd3
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/contract-report.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:ef042c93d2b9230b1c2a12159d91096065dce30cc1a6347a378f72252e5e7981
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/gitignore
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:6b9bb2afbdfa16be168f53c2aed3480019ed3154f6f2b462572143e474c9fbec
+- kind: project-relative
+  target: claude
+  value: .claude/skills/github-pipeline/templates/pipeline-rules.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:20e2ae78d75922b046b8c9f579c81062d5ea7e96087de43812dbc36db0d79f0a
 - kind: project-relative
   target: claude
   value: .claude/skills/go
@@ -155,7 +641,34 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:354b27eca1ec1c47aee4fdff8086a38e70019f822371203d912e2c8fd720c6d0
+  content_hash: sha256:d5cbd42041511cdae5cbfb54e78c4274a81436bc250d2d01ae5ccea05ad28acb
+- kind: project-relative
+  target: claude
+  value: .claude/skills/go/references/build.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:7ddd27e0150841d76546c45b1259072b8c1358f5ca4c46a5eb1a38a5bcbd67bd
+- kind: project-relative
+  target: claude
+  value: .claude/skills/go/references/coverage.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:e9211053e1424f165cb427ff2876c289ab0f3613e1910268905f59c716f14804
+- kind: project-relative
+  target: claude
+  value: .claude/skills/go/references/tooling.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:420605d003229d99af0819757de523806cc24303ccb1797b23e877fc2882191c
 - kind: project-relative
   target: claude
   value: .claude/skills/go/templates/Makefile.golang
@@ -164,7 +677,232 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:3eac0a02885c3e358bab99e37e0a997844074ec5969b2442e8458638478b2088
+  content_hash: sha256:934bb7d1b71bfbd22de6d77bca4363657f1cf77c747c4e1146cabba0cc062df2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:bc3be3d45d07d89a2f33cbbec1d8c7471788cf44209d5f09cb55bccee3a42a11
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/references/gradle.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:6b1dfc461b4b6c04efe222219440189e44bcf017610473da101cd3415c36a140
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/references/grails.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:5e0378a59c9994c6dfa7cae866dbb8286c2f6e82b7548f9c22d9c60eea085884
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/references/groovy.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:a5204ee063fffc8ccfb8a84aa8e8e0558577075bf066307bf8ee28de689de355
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/references/java.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:d016f2939dafc2546c70161944e1c551354138a234668557b88bbdc2c8a59992
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/references/tooling.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:38887f63c04578d1d4b40e97cca9c7b63f6e730b8de8e48da566d238721818bf
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/templates/Makefile.gradle
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:e004ae7a3b8ba247e57212716bc46020f1a84e71cfa0625df96db463cd40926f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/templates/build.gradle
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:d4c1ca27091357c16aa8878fbbf23903a1855ce8953443bc07e8fe06774bf950
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/templates/checkstyle.xml
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:9b2a4b32d03d2ef0071d9fd88b1d38dac197e97df97f4ea88045cc054e90e2ba
+- kind: project-relative
+  target: claude
+  value: .claude/skills/jvm/templates/settings.gradle
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:fe0c4de1a8cbd468691be72bb45c23df8cc88666624b2c578572cd11efcaf1a2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/migrate-docs
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/migrate-docs/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:3c0cafd3ed163befa72b8ed79d6ce397fb9027b8d93a7212727570f91a4c09e4
+- kind: project-relative
+  target: claude
+  value: .claude/skills/migrate-docs/migrate.mk
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:0b457e4888ad8b491e51831ed8b8f32a8750f65a3f076640a88861be34913c2b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/node
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/node/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:cb2c3ec85d37715b081119e1c9a665ce158cc60b74d2748e57605b3810064a5b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/node/references/coverage.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:0ca7735862b43d274621de5fa9316853605ab2b71d2aacd7906e1d533de6bc3e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/node/references/frameworks.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:b7f26a18838b8c927c091e55ba150006032c879c7049615372861e9bc62fa3a9
+- kind: project-relative
+  target: claude
+  value: .claude/skills/node/references/tooling.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:961f9ea7347212769fe7c9dd0816e8337f4ccaa248724f5ec16cc5d2edf3b0cf
+- kind: project-relative
+  target: claude
+  value: .claude/skills/node/templates/Makefile.node
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:b2c6d674efec14cc0d94fa5fd1a7dc8078bcd2b7d1927e23908cd1140b6af5d6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/node/templates/eslint.config.mjs
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:6cbf3cf6792c36613d596ee07d2b8d7513bf49b3a64c8413ef635a3650be4b9a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/node/templates/prettierignore
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:a5a94b823165a2b40a0da8954feec4d1587acea3a90fc374fe2667a88425ac91
+- kind: project-relative
+  target: claude
+  value: .claude/skills/onboard
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/onboard/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:5eba323a8e04410b96711f4c2326f4c0e0b8cf91c191fccff6e2db7247198cc4
+- kind: project-relative
+  target: claude
+  value: .claude/skills/onboard/references/skill-version.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:98a682cadb3e093a0842bf9fda49051a9c2e295a600e04256ef49b0a78872976
 - kind: project-relative
   target: claude
   value: .claude/skills/plan
@@ -182,7 +920,25 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:538a6f2234648961fc755aee648f6882134494d6a51d34078e9589d65e7af158
+  content_hash: sha256:6c083f631c578370642894e7cc3729afa4f3cce516e8acec29de2c95b19940f8
+- kind: project-relative
+  target: claude
+  value: .claude/skills/privacy
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/privacy/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:068f3c248626158e427ac56301aab873adfecd04ba9373fe4768b308c1872a7d
 - kind: project-relative
   target: claude
   value: .claude/skills/project-report
@@ -200,7 +956,16 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:458627c384f692fcd82cee01c31f8b1169abe334c78065b84af2ea27ef8ff3fc
+  content_hash: sha256:7e1be3312e111ba9eb57e6eef74cf200b322b34f8e04dbada0158de76161c925
+- kind: project-relative
+  target: claude
+  value: .claude/skills/project-report/references/report-contents.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:a776051a575d49ebb16610c5b6730e26fa1996dd81dd94aea974c61b06b9d881
 - kind: project-relative
   target: claude
   value: .claude/skills/project-report/report.mk
@@ -209,7 +974,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:d285bb9a15ca02f42f89502a4cea81252cd0e7635b069357689b747d22ce8d71
+  content_hash: sha256:6a28148d3304941c95c5bd1c70344260794aa016dd3a80b31b1e8c14463d1afc
 - kind: project-relative
   target: claude
   value: .claude/skills/project-report/scripts/changed_tests.py
@@ -227,7 +992,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:3e4f12ba8faabb6976692a76ad2411428b51d8c697392c37ea922ae6059c7cdd
+  content_hash: sha256:0f7afe55e38cbe4c17251b46631d5f671cb183c4a6033fe158f968970543d514
 - kind: project-relative
   target: claude
   value: .claude/skills/project-report/scripts/go_cover_map.py
@@ -263,7 +1028,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:b1e2669ff295882b20ca48cca504815ec25e7a3369558f3d63d1c4797371fb3a
+  content_hash: sha256:a7509c1172a062596398a5eb0d3e8dfd5f811437394af89693b089c31752963d
 - kind: project-relative
   target: claude
   value: .claude/skills/project-report/scripts/report_links.py
@@ -272,7 +1037,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:250d1a6f822c61050fe7c5d9b88f9438e4cfa8dda8a82b599ea05011c9759b3d
+  content_hash: sha256:09ea02d0a170d8f2e1f941bc52cf2613ad783de0915c332f846af7923a27e265
 - kind: project-relative
   target: claude
   value: .claude/skills/project-report/scripts/requirements.py
@@ -281,7 +1046,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:42fc867b9b46fb9ac3241df5e27307128897f76cf67071869dc448a827f53741
+  content_hash: sha256:11f515629f8cbb4019d5bac6afe02c31102542b45777da1b353d07fe73be212f
 - kind: project-relative
   target: claude
   value: .claude/skills/project-report/scripts/select_tests.py
@@ -299,7 +1064,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:f9919a692ca4e2098fbb85a3dd5a157b27ce3e48d8e10f3e1df2fb060f4b49f7
+  content_hash: sha256:15586a6e1895cc5f7784c108a2c86ace1e4f9fe3f6f1005efe0a3e6912961fe7
 - kind: project-relative
   target: claude
   value: .claude/skills/project-setup
@@ -317,7 +1082,34 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:300cceea2ed4363a254abcfa08e39e98cd97066a0f3ca0b886afdc3a7fb20fac
+  content_hash: sha256:31c53270b4c5ec746eb3aa48f284ed6f85b19b397013109bd6765e93e424ed8d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/project-setup/contract.mk
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:0d02c5782edd4397b8b934d9f737a2acb9d8298999d266550ae069ef6975d683
+- kind: project-relative
+  target: claude
+  value: .claude/skills/project-setup/doctor.mk
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:bc6e68894704c0eb5aae8de47349d0d47c3a41a475d1ec6987a10b90d6c570ed
+- kind: project-relative
+  target: claude
+  value: .claude/skills/project-setup/old-board.mk
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:89759e5362141d55afc7fc769b11f30521c311004ac73fd9780b52a93362b78b
 - kind: project-relative
   target: claude
   value: .claude/skills/project-setup/podman-python.mk
@@ -326,7 +1118,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:8673ec9287d1daf3307e100269058655a6792608fbe129395257d8c9c7fb3f23
+  content_hash: sha256:c6d70fdd171ef8ed3388839687cf81d49c9ec2e3dd8b79820bfe697b56d63cc2
 - kind: project-relative
   target: claude
   value: .claude/skills/project-setup/project.mk
@@ -335,7 +1127,52 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:ef49e907411637ccbf4fab7cdff2008348576b5a04c721061143768a4b70ade0
+  content_hash: sha256:6300ec9d086eed8593d83e867d15b9448c86a4ba56f69fe7676a365102587068
+- kind: project-relative
+  target: claude
+  value: .claude/skills/project-setup/references/fail-list.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:bf624165047e9a8f71851da8e647e25d340ed2f20f3f015f099ba7a4ad3abc00
+- kind: project-relative
+  target: claude
+  value: .claude/skills/project-setup/references/makefile.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:f655fc3d5b17e4702cb33af20eaaf6872fb6ec4b2ec947ff7e1abbe6fa0078ae
+- kind: project-relative
+  target: claude
+  value: .claude/skills/project-setup/references/paths-and-shipment.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:723e21fd8d24eb614d36fcbcdf0fdf48f11bde9ef811b2668bdb2db579393be6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/project-setup/references/setup-cases.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:36d47a87dce16ca7702dede009772a37b09e50eadb7a3015e5bf16d3e20aa55c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/project-setup/skills.mk
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:2d46631cc00a1719ccb1adfaebcc5b9236c51c7cad60d9e98c36b1c2ef916e6f
 - kind: project-relative
   target: claude
   value: .claude/skills/project-setup/templates/CLAUDE.md
@@ -344,7 +1181,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:6173cf24bc09bdea077e2cf68a3483a3ae49ffe2d3e01639059083999ce30589
+  content_hash: sha256:d14724eff9b7db39cbbd0c7df88903208beb085563ce860a71143815db5ee0b6
 - kind: project-relative
   target: claude
   value: .claude/skills/project-setup/templates/contract-report.md
@@ -353,7 +1190,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:8486b1f897b2422e7c5956146796f7152b35cc7bb23598a839471036ecfebcea
+  content_hash: sha256:e21c0532a6c78d1c38f0f99a35e07d989f24071b8693578f099e992ead22fc2e
 - kind: project-relative
   target: claude
   value: .claude/skills/project-setup/templates/editorconfig
@@ -371,7 +1208,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:6e453fec1ee5ada5206dd86288b160c0527043d96d6d01fb3b75e575e4047bc7
+  content_hash: sha256:34d24dca8c2ac72d992a5874ef48780b6981b57d9bc04e6155700a9b179ad68b
 - kind: project-relative
   target: claude
   value: .claude/skills/project-setup/tools.mk
@@ -380,7 +1217,70 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:3f1685fedf2f32fd9b2aba9d265edbcc4e7781691170f8109d647229c7f64c42
+  content_hash: sha256:813fac2fedbcd7b6b0245421282a4bc12e1a5aa53958e97082dc07605d95c446
+- kind: project-relative
+  target: claude
+  value: .claude/skills/python
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/python/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:1854d55107d8e066f114c596a50916b59e38ecbd30e3cc97f5822cf4cec9da47
+- kind: project-relative
+  target: claude
+  value: .claude/skills/python/references/frameworks.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:f6d298f6edca46b1486ff86108dcc38adced69929f6da4c94a701d1800cbf341
+- kind: project-relative
+  target: claude
+  value: .claude/skills/python/references/makefile.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:9cd5699fc1705db0600347fd21aef80e45603e5e1d306755955e2007636f374c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/python/references/tooling.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:0e882bea7075e75725374fe421fc9bfcce164d08e3b1a534c6b2fb25eb5206b0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/python/templates/Makefile.python
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:a4de8f98a1ff38dada0fabf14d594cb630cf89f18b1669913e43c4eeca790741
+- kind: project-relative
+  target: claude
+  value: .claude/skills/python/templates/coveragerc
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:a8136d55d06b47b6d8836cf381907aaec8733cdf8c27a637df05f8a4eef0bfb3
 - kind: project-relative
   target: claude
   value: .claude/skills/record
@@ -398,7 +1298,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:62882f68c9e3dfaa1b7a2c1258530db8d3fddf8b8d5092713a48ff164c93d046
+  content_hash: sha256:5468150c43fa654b7ddc39c2c69fee368e40788a93b686eb80e0b607ac250048
 - kind: project-relative
   target: claude
   value: .claude/skills/record/index.mk
@@ -407,7 +1307,70 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:b354741fd3b570a3aa53dcd333af905abccf31abb0770f50e112fa52a619b568
+  content_hash: sha256:cde0f630a1436da29522ab11b3bf48ce28fb2f85064f1e1670f57f9b4838bb37
+- kind: project-relative
+  target: claude
+  value: .claude/skills/record/references/adr.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:cf375028e0d7126a684d9d0181bb8719d39912d10af1356c7c3a78505ab8ac6b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/record/references/close.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:c572829311cb5912680d86f13e1a69c18fef22b23827d6b9a38c25fb333ac2f6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/record/references/documents.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:595571b35fbd1a6850f7e885006577cb9467a03a60b0d7421a5ff3283ca33257
+- kind: project-relative
+  target: claude
+  value: .claude/skills/record/references/history.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:db9e2e9e2fd485b104d16905538505d8c29fee205271af6d945384426720e04c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/record/references/id-kinds.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:800c5858d1325486c3baf7143efa1a3712f172e68825e79ec2e2b84824876d47
+- kind: project-relative
+  target: claude
+  value: .claude/skills/record/references/indexes.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:bdbf91b878f575d165d407ade5a6fca6749919ad7490f318a2b93f5f0567e5ce
+- kind: project-relative
+  target: claude
+  value: .claude/skills/record/references/test-ids.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:199f4915f9845e995b297b9a721ba49e52e218740c03b321d8e451adfc212f24
 - kind: project-relative
   target: claude
   value: .claude/skills/record/scripts/adr_index.py
@@ -416,16 +1379,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:0b6e29b3c519e554dab5e30521cb03da46c63154bf2221ae2e4cb98ef2b8583f
-- kind: project-relative
-  target: claude
-  value: .claude/skills/record/scripts/decision_log.py
-  runtime: null
-  scope: project
-  owners:
-  - rbe/ralfskills
-  active_owner: rbe/ralfskills
-  content_hash: sha256:cc6b8bb655b2f7db4db1a7afe45cf20a8265d382c5e59cf3e43eee3df402f791
+  content_hash: sha256:699fa03e935c434ce948fb5fdcf24d9a29027f0a5f3a5533346d9d0a589ce2bf
 - kind: project-relative
   target: claude
   value: .claude/skills/record/scripts/ids.py
@@ -434,7 +1388,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:82d3692bdd52b8aa009827a009cf93398095d202234ba86d82a1873d3e6e5143
+  content_hash: sha256:ab3f0c4e9d6d24d8f6362e3804c0355750f073d9fdfe8d80708cfce1b775739d
 - kind: project-relative
   target: claude
   value: .claude/skills/record/scripts/links.py
@@ -443,7 +1397,16 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:c0a079fb87b1dff83b6c7c3063f3bd92a35103c936d82df229745024d2ddc3c6
+  content_hash: sha256:f19e2355f340f04cb83b6dad307f66889da83be8d93c0fe51ef08df0b490e706
+- kind: project-relative
+  target: claude
+  value: .claude/skills/record/scripts/req.py
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:1a58cba87c88d0de8c61cc6abef67f309094a2594b2918bab58168d8f64b1161
 - kind: project-relative
   target: claude
   value: .claude/skills/record/scripts/requirements_index.py
@@ -452,7 +1415,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:f7236bb00cf70931ab508d932eb369510eca8c2757612c12ebddf4cd8f696398
+  content_hash: sha256:f5d2d356d982e79fc08b91286604a9c09b8e03af7c936a247a5a696ffec811bd
 - kind: project-relative
   target: claude
   value: .claude/skills/record/scripts/skill_index.py
@@ -470,7 +1433,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:8fc0b47c3e36eadc1285f62c7c7d34c9fb41ace397264114184761eb996bb4a6
+  content_hash: sha256:897fb6b45312bc1e8442c87bb82b7383ad6283bdb6b8630e5f7ec15c29579a7f
 - kind: project-relative
   target: claude
   value: .claude/skills/record/scripts/toon.py
@@ -479,25 +1442,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:ba5ef6a7195f19263c30eeac8542935419b438f94eaf0a76ebf357deacea65b4
-- kind: project-relative
-  target: claude
-  value: .claude/skills/record/templates/DECISIONS.md
-  runtime: null
-  scope: project
-  owners:
-  - rbe/ralfskills
-  active_owner: rbe/ralfskills
-  content_hash: sha256:1840dc1e3a3dd2800ace78ad20d2b436dd50067278fb6e99f14d56ab67273b2e
-- kind: project-relative
-  target: claude
-  value: .claude/skills/record/templates/KNOWN_ISSUES.md
-  runtime: null
-  scope: project
-  owners:
-  - rbe/ralfskills
-  active_owner: rbe/ralfskills
-  content_hash: sha256:48cb5092bbc7e5ca9e2c6464e81d6ff9228bb6e74c9f9af3f6f7ed8d9102acd5
+  content_hash: sha256:27ba4a36c25b29ff49d5018a4ce4a2ea8bf952205029aadfaa2faca9aefe3488
 - kind: project-relative
   target: claude
   value: .claude/skills/record/templates/ROADMAP.md
@@ -506,7 +1451,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:5d289f6bcdeadd3f4a1320ab84f2e33e99f865f04b38607af51289d1dd9e13db
+  content_hash: sha256:c9bd92cf283b9acb130aff9e227732c63c776bb6e6f8f36683e6975dc4fe4ca6
 - kind: project-relative
   target: claude
   value: .claude/skills/record/templates/adr.md
@@ -515,7 +1460,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:3c0ca811c0ce0ff35e21b6f23cd0e15328bcb7b12741001120bc351f1ec7c6d6
+  content_hash: sha256:5b8497879cef6382ed4945d24a12ec4a7bd3e9628075229230e0e85b67f0bcf4
 - kind: project-relative
   target: claude
   value: .claude/skills/record/templates/history.md
@@ -524,7 +1469,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:23782dffe54615444de3ae7003a2de2933236e8ddedb7a19b77c3a4e40c3d851
+  content_hash: sha256:401fd1c1f07bf303560882c0c61b5a37d51fd63622bff8122bd5789e44ce2432
 - kind: project-relative
   target: claude
   value: .claude/skills/record/templates/proposal.md
@@ -533,7 +1478,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:032e6b9f5ae321db44b352f03186b5d4d127eb52b4f2748cc3692630da9020be
+  content_hash: sha256:c94443d26ffc52cc71b5c14aa63c67bb3bb521135cea658c64cdf72d0816907d
 - kind: project-relative
   target: claude
   value: .claude/skills/release
@@ -551,7 +1496,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:53bc3dc004313d6507bd4e3ba74b21fde53363cf40d7822cf51d67c65430ce0a
+  content_hash: sha256:887aacccdf5e9d09b0473231ac48004c22ff157eeee8f9964b1f54124f78551a
 - kind: project-relative
   target: claude
   value: .claude/skills/review
@@ -569,7 +1514,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:e5da87f1c04c37c686012fade55a8cc8b81c38bb795270d2f3b17b1aa021a047
+  content_hash: sha256:5da655fb4d156867dcb646046d3c95b68a8ac449cc18e8836a0b79ed1f529e9c
 - kind: project-relative
   target: claude
   value: .claude/skills/security
@@ -587,7 +1532,7 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:35dbf657275989d4327f956a2b74808ca41875a12939b3f6eb4ff1f3734195ec
+  content_hash: sha256:4cd47ed000d20e2678e60214e37cb7e53c7d3b404d364e47e769c124a1700c31
 - kind: project-relative
   target: claude
   value: .claude/skills/shell
@@ -605,4 +1550,49 @@ deployments:
   owners:
   - rbe/ralfskills
   active_owner: rbe/ralfskills
-  content_hash: sha256:54b5a0211e948493b8b438ff67720904cd8501cf6ccb430d9a2a4458f455c400
+  content_hash: sha256:3e33956ab7de3e139dc3b54d14912435711467177f70bf33d7fc263f66c116ac
+- kind: project-relative
+  target: claude
+  value: .claude/skills/system-state-report
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/system-state-report/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:c74624b6a399fe407ba7e3929096f63e8493615629c776dc3b4266f27c645989
+- kind: project-relative
+  target: claude
+  value: .claude/skills/system-state-report/references/cold-reader.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:ed50761d096ae7e2b8f65888d7b76fc64a3cde0224d736f4f9b3fe453447c7ea
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ux-ui-design
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ux-ui-design/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - rbe/ralfskills
+  active_owner: rbe/ralfskills
+  content_hash: sha256:1ef23b6707f682c5f0ff6fe28fea774db0e618924a1750d9f60eebc8b3ac2abc
