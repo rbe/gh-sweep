@@ -11,7 +11,7 @@ The owner chooses findings from the report of `board-merge-report`. This skill d
 
 <inputs>
 - An action and ids, as `merge R-51 R-76`, `shorten R-12`, `cover R-40`, `delete H-2026-11-15-slug`, or `fix R-12`.
-- Several lines make several findings.
+- Several lines make several findings. Edit one finding and commit it before the first edit of the next. Two findings in one file then stay in two commits.
 - A question of the report waits for the owner's answer.
 </inputs>
 
@@ -27,7 +27,7 @@ The owner chooses findings from the report of `board-merge-report`. This skill d
 
 <rules>
 - Merge: the surviving row keeps its id and takes the unique sentences of the other row. The row of the other id is deleted. Its number is never issued again.
-- Merge: each test line `id:` that names the deleted id names the surviving id. No test is deleted.
+- Merge: each test line `id:` that names the deleted id names the surviving id. The column `names` of `make board-numbers` lists these tests. No test is deleted.
 - Merge: each mention of the deleted id in a document that is not a history file becomes the surviving id before the delete. Then `make links` rewrites the links. Edit no line of a history file.
 - Shorten and cover: edit the row only. Cover keeps the intent, the reason, and each fact that no test pins.
 - Delete history: only a closed file. Copy a flagged reason into the named row first. Remove each mention of the history id outside history files, and delete the file.
