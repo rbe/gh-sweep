@@ -20,7 +20,7 @@ A skill states only what it adds to these rules.
 
 Interface:
 
-- Type only `make <target>` and Git commands. Make runs every other tool in a Podman image, on this machine and in CI. The host needs only Make, Git, and Podman. Push only with a remote `origin`.
+- Type only `make <target>` and Git commands. A typed tool of POSIX `sh`, such as `tail` or `grep`, may only shorten or search output, and writes no file. Make runs every other tool in a Podman image, on this machine and in CI. The host needs only Make, Git, and Podman. Push only with a remote `origin`.
 - If no target runs a command that the work needs, `project-setup` adds the target.
 - Report mode writes nothing and fills its skeleton in the reply. Setup mode writes only what is missing or off the contract. A request for both runs report mode first.
 
@@ -71,6 +71,12 @@ Content:
 - For "better", say what changed and what the effect is. Use no judging word without a measure.
 - Say how you know each statement about the system: you ran it, you read it in the code, or you only assume it.
 - Use literal language, not figures of speech.
+
+Questions:
+
+- Before a question, give the context: what the item is, what holds now, the choices, and the effect of each choice. Recommend one choice.
+- Never write a bare id. Write each id with its title and as a Markdown link to its definition. `make req ID=<ids>` prints the title and the file.
+- The user can answer without opening a file.
 
 Example. Not: "Improved the persistence layer." But: "`save_order` in `db/orders.py` now tries a failed write 3 times. Before, one failed write stopped the import. I read this in the code. I did not run it."
 
