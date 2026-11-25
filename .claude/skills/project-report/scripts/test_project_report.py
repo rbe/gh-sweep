@@ -485,7 +485,7 @@ class GeneralRulesTest(unittest.TestCase):
 
     def test_the_entry_file_and_its_template_stay_within_their_word_limits(self):
         """id: R-76"""
-        limits = {"CLAUDE.md": 824, "skills/project-setup/templates/CLAUDE.md": 894}
+        limits = {"CLAUDE.md": 845, "skills/project-setup/templates/CLAUDE.md": 915}
         for name, limit in limits.items():
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertLessEqual(len(text.split()), limit, name)
@@ -511,6 +511,11 @@ class GeneralRulesTest(unittest.TestCase):
         for text in general_rules():
             self.assertIn("Type only `make <target>` and Git commands.", text)
             self.assertIn("The host needs only Make, Git, and Podman.", text)
+            self.assertIn(
+                "A typed tool of POSIX `sh`, such as `tail` or `grep`, "
+                "may only shorten or search output, and writes no file.",
+                text,
+            )
             self.assertIn("Run `make old-board` before the first skill.", text)
             self.assertIn("the only skill is `migrate-docs`", text)
             self.assertIn("`record` writes every id and every board document.", text)
@@ -1145,6 +1150,20 @@ class MakeAndPodmanInterfaceTest(unittest.TestCase):
         self.assertIn("`make skills-update DRY_RUN=1`", readme)
         self.assertNotIn("Run `apm update`", readme)
         self.assertNotIn("run `apm install`", readme)
+
+    def test_the_readme_states_three_facts_for_the_migration_of_a_project(self):
+        """id: R-72"""
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("`make old-board` fails first, as designed", readme)
+        self.assertIn("the only skill is then `migrate-docs`", readme)
+        self.assertIn("APM calls them unmanaged", readme)
+        self.assertIn("`make apm ARGS='install --force'`", readme)
+        self.assertIn("`make ids` fails", readme)
+        self.assertIn("`make id-raise KIND=<kind> TO=<n>`", readme)
+        index = (ROOT / "skills" / "record" / "index.mk").read_text(encoding="utf-8")
+        self.assertIn("id-raise:", index)
+        skills = (self.SETUP / "skills.mk").read_text(encoding="utf-8")
+        self.assertIn("apm: ##", skills)
 
     def test_the_readme_defines_the_test_in_a_test_repository(self):
         """id: R-100"""
