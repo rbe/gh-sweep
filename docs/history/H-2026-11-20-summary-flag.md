@@ -3,7 +3,7 @@ id: H-2026-11-20-summary-flag
 title: The flag --summary prints one line for each repository
 status: closed
 adrs: [ADR-0003]
-skills: [plan, security, develop, go, review, project-report, release]
+skills: [r-plan, r-security, r-develop, r-go, r-review, r-project-report, r-release]
 decisions: [D-7, D-8]
 proposals: [P-1]
 issues: [K-3]

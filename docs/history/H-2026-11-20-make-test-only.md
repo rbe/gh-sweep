@@ -3,7 +3,7 @@ id: H-2026-11-20-make-test-only
 title: The tests run with make test only
 status: closed
 adrs: []
-skills: [develop, review, shell, security]
+skills: [r-develop, r-review, r-shell, r-security]
 decisions: [D-6]
 proposals: []
 issues: [K-1, K-2]

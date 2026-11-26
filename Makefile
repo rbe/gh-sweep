@@ -79,7 +79,7 @@ $(CONTAINER_ENGINE) run --rm \
 	$(GO_IMAGE)
 endef
 
-# The Make contract of the project-setup skill. Each command variable is
+# The Make contract of the r-project-setup skill. Each command variable is
 # set before the include. Go runs in the container, as before.
 SETUP_CMD = $(call go-run,) go mod download
 BUILD_CMD = $(MAKE) bin/gh-sweep && $(MAKE) --no-print-directory image-ci
@@ -94,13 +94,13 @@ COVERAGE_CMD = set -eu; \
 	git add -N .; \
 	git diff "$$base" > build/coverage/change.diff; \
 	$(call go-run-rw,) sh -c 'set -eu; mkdir -p build/coverage/go; for pkg in $$(go list ./...); do go test -coverpkg=./... -coverprofile="build/coverage/go/$$(printf "%s" "$$pkg" | tr "/" "_").out" "$$pkg"; done'; \
-	$(PYTHON) .claude/skills/project-report/scripts/go_cover_map.py; \
+	$(PYTHON) .claude/skills/r-project-report/scripts/go_cover_map.py; \
 	REPORT=build/coverage/coverage.xml $(DIFF_COVER)
-TEST_CHANGED_CMD = chosen=$$($(PYTHON) .claude/skills/project-report/scripts/changed_tests.py --print); \
+TEST_CHANGED_CMD = chosen=$$($(PYTHON) .claude/skills/r-project-report/scripts/changed_tests.py --print); \
 	if [ -z "$$chosen" ]; then printf '%s\n' "test-changed: no test covers the changed files. make test runs the full suite."; \
 	else printf 'test-changed: %s\n' "$$chosen"; $(call go-run,) go test $$chosen; fi
 
-# The image block of the github-pipeline skill. OWNER and NAME come from
+# The image block of the r-github-pipeline skill. OWNER and NAME come from
 # the git remote origin, so IMAGE is ghcr.io/rbe/gh-sweep.
 IMAGE ?= ghcr.io/$(OWNER)/$(NAME)
 PACKAGE ?= $(OWNER)/$(NAME)
@@ -111,7 +111,7 @@ SDLC_JOBS = setup build test publish-container
 SDLC_CI = setup build editorconfig format lint test integration coverage report
 SMOKE_ARGS = --help
 
-include .claude/skills/github-pipeline/sdlc.mk
+include .claude/skills/r-github-pipeline/sdlc.mk
 
 .PHONY: install auth token run clean notes
 
