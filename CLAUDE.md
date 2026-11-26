@@ -4,11 +4,11 @@ A terminal checklist that deletes GitHub Actions artifacts and caches.
 
 `CLAUDE.md` is the only entry file. The skills are under `.claude/skills/`.
 
-Stages, in order: `r-plan`, `r-develop`, `r-review`, `r-release`. A new or vague request starts at `r-plan`. A request that names a source file, a failing test, or a roadmap defect starts at `r-develop`. Other skills: `r-record`, `r-project-report`, `r-project-setup`, `r-onboard`, `r-migrate-docs`, `r-github-pipeline`, `r-system-state-report` (say `state report`), `r-board-merge-report`, `r-board-merge`, `r-skills-review`, `r-component-upgrade`, `r-upgrade-go-components`, `r-upgrade-java-components`, `r-upgrade-node-components`, `r-upgrade-python-components`. Language skills: `r-go`, `r-shell`, `r-jvm`, `r-node`, `r-python`. Subskills `r-plan` asks and `r-review` checks: `r-security`, `r-privacy`, `r-ux-ui-design`, `r-api-design`, `r-observability`, `r-performance`. A project skill is an extra name listed here. There is no project skill. The screen is built with Bubble Tea, Lip Gloss, and Bubbles.
+Stages, in order: `r-plan`, `r-develop`, `r-review`, `r-release`. A new or vague request starts at `r-plan`. A request that names a source file, a failing test, or a roadmap defect starts at `r-develop`. Other skills: `r-record`, `r-project-report`, `r-project-setup`, `r-onboard`, `r-migrate-docs`, `r-github-pipeline`, `r-system-state-report` (say `state report`), `r-board-merge-report`, `r-board-merge`, `r-skills-review`, `r-component-upgrade`, `r-upgrade-go-components`, `r-upgrade-java-components`, `r-upgrade-node-components`, `r-upgrade-python-components`. Language skills: `r-go`, `r-shell`, `r-jvm`, `r-node`, `r-python`. Subskills `r-plan` asks and `r-review` checks: `r-security`, `r-privacy`, `r-ux-ui-design`, `r-api-design`, `r-observability`, `r-performance`. A project skill is an extra name listed here. If `CLAUDE.md` lists a project skill `<project>-<stage>`, the stage reads it after its own steps. The addendum holds only what is true for that project. There is no project skill. The screen is built with Bubble Tea, Lip Gloss, and Bubbles.
 
-`r-plan` names who owns state and what may call what. `r-develop` is not done until `make lint` and `make test` pass. The linter is the one the language skill names. `make test` is the full suite. `make test-changed` runs the tests that cover the diff. `make coverage` lists the lines the change touched. `make r-project-report` writes the generated report. `make format-fix` rewrites the files with the formatter.
+`r-plan` names who owns state and what may call what. `r-develop` is not done until `make lint` and `make test` pass. The linter is the one the language skill names. `make test` is the full suite. `make test-changed` runs the tests that cover the diff. `make coverage` lists the lines the change touched. `make project-report` writes the generated report. `make format-fix` rewrites the files with the formatter.
 
-This project ships as a binary, with `make build` and `make install`, and as a container image, with the merge into the default branch.
+This project ships as a binary, with `make build` and `make install`, and as a container image, with a manual publish.
 
 In-progress work is a row in `docs/ROADMAP.md`. A defect and an open question are rows there too. An architecture or development rule is an ADR in `docs/adr/`. Work for later is a file in `docs/proposals/`. A started slice is a file in `docs/history/`. A test names the ADR it proves with `id:`. An id in a document is a link. `make links` writes the links.
 
@@ -46,6 +46,10 @@ Gates:
 - A method does one thing or only composes other methods. Name each unit, function, method, class, and file from the domain.
 
 </general_rules>
+
+## Agents
+
+A strong model, Fable or Opus, discusses, plans, orchestrates, and reviews. Sonnet implements normal work. Haiku implements mechanical work. Each brief names the files the agent owns and the check that accepts the work. The reviewing model runs the checks itself and re-checks each claim of an agent. If a Sonnet agent fails twice on one step, the orchestrator takes over or asks the owner, and the history file names the escalation. A skill file names no model and has no `model:` field. An agent file in `.claude/agents/` names a model alias.
 
 ## Communication contract
 
