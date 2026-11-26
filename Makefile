@@ -90,9 +90,6 @@ FORMAT_CMD = $(call go-run,) sh -c 'files=$$(gofmt -l $$(go list -f "{{.Dir}}" .
 FORMAT_FIX_CMD = $(call go-run-rw,) sh -c 'gofmt -w $$(go list -f "{{.Dir}}" ./...)'
 LINT_CMD = $(call go-run,) go vet ./...
 COVERAGE_CMD = set -eu; \
-	base=$$(git merge-base HEAD origin/$(DEFAULT_BRANCH) 2>/dev/null || git rev-parse -q --verify HEAD 2>/dev/null || git hash-object -t tree /dev/null); \
-	git add -N .; \
-	git diff "$$base" > build/coverage/change.diff; \
 	$(call go-run-rw,) sh -c 'set -eu; mkdir -p build/coverage/go; for pkg in $$(go list ./...); do go test -coverpkg=./... -coverprofile="build/coverage/go/$$(printf "%s" "$$pkg" | tr "/" "_").out" "$$pkg"; done'; \
 	$(PYTHON) .claude/skills/r-project-report/scripts/go_cover_map.py; \
 	REPORT=build/coverage/coverage.xml $(DIFF_COVER)
