@@ -112,8 +112,9 @@ SDLC_CI = setup build editorconfig format lint test integration coverage report
 SMOKE_ARGS = --help
 
 include .claude/skills/r-github-pipeline/sdlc.mk
+include .claude/skills/r-go/go.mk
 
-.PHONY: install auth token run clean notes
+.PHONY: install auth token run clean
 
 SOURCES := $(wildcard *.go internal/*/*.go)
 
@@ -181,10 +182,3 @@ clean: ## Remove bin/, build/, a leftover .cache, and the Go volumes. FORCE=1 al
 		if [ -n "$$ids" ]; then $(CONTAINER_ENGINE) rm -f $$ids; fi; \
 		$(CONTAINER_ENGINE) rmi -f $(IMAGE) >/dev/null 2>&1 || true; \
 	fi
-
-notes: ## Print the notes about Go, the cache, and the keyring
-	@printf '%s\n' \
-		'Go is not installed on the host. Build and test use $(GO_IMAGE).' \
-		'The Go cache is the volumes gh-sweep-gocache and gh-sweep-gomod.' \
-		'The container cannot see the macOS Keychain or Linux keyring.' \
-		'make auth && make run ARGS="owner/repo"'
