@@ -3,7 +3,7 @@ id: H-2026-11-20-os-exec-import-test
 title: A test proves that only internal/gh imports os/exec
 status: closed
 adrs: [ADR-0001]
-skills: [develop, go, review, security, project-report, release]
+skills: [r-develop, r-go, r-review, r-security, r-project-report, r-release]
 decisions: []
 proposals: []
 issues: [K-2]

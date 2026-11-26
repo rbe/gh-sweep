@@ -4,9 +4,9 @@ A terminal checklist that deletes GitHub Actions artifacts and caches.
 
 `CLAUDE.md` is the only entry file. The skills are under `.claude/skills/`.
 
-Stages, in order: `plan`, `develop`, `review`, `release`. A new or vague request starts at `plan`. A request that names a source file, a failing test, or a roadmap defect starts at `develop`. Other skills: `record`, `project-report`, `project-setup`, `onboard`, `migrate-docs`, `github-pipeline`, `system-state-report` (say `state report`), `board-merge-report`, `board-merge`. Language skills: `go`, `shell`, `jvm`, `node`, `python`. Subskills `plan` asks and `review` checks: `security`, `privacy`, `ux-ui-design`, `api-design`. A project skill is an extra name listed here. There is no project skill. The screen is built with Bubble Tea, Lip Gloss, and Bubbles.
+Stages, in order: `r-plan`, `r-develop`, `r-review`, `r-release`. A new or vague request starts at `r-plan`. A request that names a source file, a failing test, or a roadmap defect starts at `r-develop`. Other skills: `r-record`, `r-project-report`, `r-project-setup`, `r-onboard`, `r-migrate-docs`, `r-github-pipeline`, `r-system-state-report` (say `state report`), `r-board-merge-report`, `r-board-merge`, `r-skills-review`, `r-component-upgrade`, `r-upgrade-go-components`, `r-upgrade-java-components`, `r-upgrade-node-components`, `r-upgrade-python-components`. Language skills: `r-go`, `r-shell`, `r-jvm`, `r-node`, `r-python`. Subskills `r-plan` asks and `r-review` checks: `r-security`, `r-privacy`, `r-ux-ui-design`, `r-api-design`, `r-observability`, `r-performance`. A project skill is an extra name listed here. There is no project skill. The screen is built with Bubble Tea, Lip Gloss, and Bubbles.
 
-`plan` names who owns state and what may call what. `develop` is not done until `make lint` and `make test` pass. The linter is the one the language skill names. `make test` is the full suite. `make test-changed` runs the tests that cover the diff. `make coverage` lists the lines the change touched. `make project-report` writes the generated report. `make format-fix` rewrites the files with the formatter.
+`r-plan` names who owns state and what may call what. `r-develop` is not done until `make lint` and `make test` pass. The linter is the one the language skill names. `make test` is the full suite. `make test-changed` runs the tests that cover the diff. `make coverage` lists the lines the change touched. `make r-project-report` writes the generated report. `make format-fix` rewrites the files with the formatter.
 
 This project ships as a binary, with `make build` and `make install`, and as a container image, with the merge into the default branch.
 
@@ -21,17 +21,17 @@ A skill states only what it adds to these rules.
 Interface:
 
 - Type only `make <target>` and Git commands. A typed tool of POSIX `sh`, such as `tail` or `grep`, may only shorten or search output, and writes no file. Make runs every other tool in a Podman image, on this machine and in CI. The host needs only Make, Git, and Podman. Push only with a remote `origin`.
-- If no target runs a command that the work needs, `project-setup` adds the target.
+- If no target runs a command that the work needs, `r-project-setup` adds the target.
 - Report mode writes nothing and fills its skeleton in the reply. Setup mode writes only what is missing or off the contract. A request for both runs report mode first.
 
 Start of a task:
 
-- Run `make old-board` before the first skill. If the target fails, the only skill is `migrate-docs`.
+- Run `make old-board` before the first skill. If the target fails, the only skill is `r-migrate-docs`.
 - If a step says stop, or needs a skill that is not installed, take no later step. Tell the user the step, the reason, and the missing skill.
 
 Board:
 
-- `record` writes every id and every board document. Invoke `record` before you create one.
+- `r-record` writes every id and every board document. Invoke `r-record` before you create one.
 - An architecture decision record (ADR) in `docs/adr/` is an architecture or development rule. An ADR with the status `Accepted` is a rule for every change.
 - If the repository keeps `docs/requirements/` and no `docs/adr/`, a row of those files replaces an ADR, and a planned row replaces a roadmap row. Where a step names `docs/adr/index.toon`, read `docs/requirements-index.toon` in such a repository. For each row that names a part that the change touches, run `make req ID=<ids>`.
 - Write one line for each `check` row of `docs/skill-index.toon`, or `checks: none installed`. For a subskill that is not installed, write `<name>: not installed`. A row without a line fails the step.

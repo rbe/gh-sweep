@@ -3,7 +3,7 @@ id: H-2026-11-20-run-in-container
 title: make run runs the program in the container
 status: closed
 adrs: [ADR-0002]
-skills: [plan, security, develop, shell, review, project-report]
+skills: [r-plan, r-security, r-develop, r-shell, r-review, r-project-report]
 decisions: [D-9]
 proposals: []
 issues: []
