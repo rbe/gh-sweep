@@ -1,6 +1,6 @@
 ---
 id: H-2026-11-27-ralfskills-v080
-title: Move the project to RalfSkills commit 4c028a8
+title: Move the project to RalfSkills v0.8.0
 status: closed
 adrs: []
 skills: [r-plan, r-develop, r-go, r-review, r-release]
@@ -8,11 +8,11 @@ roadmap: []
 proposals: []
 ---
 
-# Move the project to RalfSkills commit 4c028a8
+# Move the project to RalfSkills v0.8.0
 
 ## Plan
 
-The owner asked to move the project to RalfSkills commit 4c028a8, the commit that becomes v0.8.0. `apm.yml` pins the commit. The four `r-upgrade-*-components` skills are gone, and their facts are in `references/upgrade.md` of the language skills.
+The owner asked to move the project to RalfSkills commit 4c028a8, the commit that becomes v0.8.0. `apm.yml` pins the tag v0.8.0, which points to that commit. The four `r-upgrade-*-components` skills are gone, and their facts are in `references/upgrade.md` of the language skills.
 
 ## Develop
 
