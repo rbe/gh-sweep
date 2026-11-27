@@ -79,6 +79,13 @@ $(CONTAINER_ENGINE) run --rm \
 	$(GO_IMAGE)
 endef
 
+# Host mode (TOOLS=host of r-project-setup): Go runs from PATH, for a
+# machine without Podman, such as a cloud session.
+ifeq ($(TOOLS),host)
+go-run = env CGO_ENABLED=0
+go-run-rw = env CGO_ENABLED=0
+endif
+
 # The Make contract of the r-project-setup skill. Each command variable is
 # set before the include. Go runs in the container, as before.
 SETUP_CMD = $(call go-run,) go mod download
