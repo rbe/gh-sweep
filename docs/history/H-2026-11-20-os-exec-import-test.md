@@ -17,34 +17,12 @@ issues: [K-2]
 
 ## Develop
 
-`internal/gh/os_exec_import_test.go` is new. It names [ADR-0001](../adr/ADR-0001.md) with `id:`. `TestOnlyInternalGHImportsOSExec` reads the imports of each Go file of the project and fails when a package other than `internal/gh` imports `os/exec`. `TestPackageOutsideInternalGHThatImportsOSExecIsNamed` builds a small tree in which `internal/ui` imports `os/exec`, and it proves that the check names that package. The check reads each package of the project, so it also covers the package `main` and a package added later. It does not read a hidden directory, `apm_modules/`, `build/`, or `bin/`.
-
-The accepted ADRs for `develop` and `go` were read. [ADR-0001](../adr/ADR-0001.md) is kept: the test starts no command and imports no `os/exec`. [ADR-0002](../adr/ADR-0002.md) is not touched: the Makefile did not change.
-
-go: the language skill for the Go test file. The test file names its id in a comment in the file header.
-
-No file of the program changed, so the program has no behaviour change. The test is in the package `internal/gh`, the package that [ADR-0001](../adr/ADR-0001.md) names. A first version of the file was in the package `main`. The coverage map did not list that package, and `make test-changed` printed `test-changed: no test covers the changed files. make test runs the full suite.` With the file in `internal/gh`, `make test-changed` printed `test-changed: ./internal/gh`.
-
-`make format`, `make lint`, and `make test` passed. `make coverage` wrote `build/coverage/diff.md`. It has no line, because a Go test file has no coverage information.
+`internal/gh/os_exec_import_test.go` is new and names [ADR-0001](../adr/ADR-0001.md) with `id:`. The test fails when a package other than `internal/gh` imports `os/exec`. A second test proves the check names the package. No program file changed. [ADR-0002](../adr/ADR-0002.md) is not touched.
 
 ## Review
 
-`make lint`, `make test`, `make editorconfig`, `make format`, `make integration`, and `make ids` passed.
-
-security: no secret is in the tree, a log, an error, or a fixture. The change adds no listener. The program accepts no new input. The test reads only the Go files of the project and of a temporary directory. The program runs no new command, and the test now proves that only `internal/gh` can start one.
-
-The accepted ADRs for `develop`, `review`, and `go` were read. The change breaks neither. [ADR-0002](../adr/ADR-0002.md) is a divergence, and it names the rule, what differs, and why.
-
-project-report: `make project-report` wrote `build/project-report.md` with the requirements map and both reviews. The file was not hand-edited. The map names `internal/gh/os_exec_import_test.go` as the test of [ADR-0001](../adr/ADR-0001.md). The ids with no test are [ADR-0002](../adr/ADR-0002.md) and D-6.
-
-`build/coverage/diff.md` says: `No lines with coverage information in this diff.` The change touched no line of the program.
-
-Each test file names an ADR or a Decided row. No id is in a path. No test is skipped. No error is ignored. No fixture has a secret or personal data. Each function of the new file does one thing or only composes other functions, and each name is from the domain of [ADR-0001](../adr/ADR-0001.md).
-
-No finding in this change.
-
-Left alone: [ADR-0002](../adr/ADR-0002.md) and D-6 have no test. Each is a rule about how to work, not behaviour of the program. The test checks the import of `os/exec`. It does not check that no package uses a GitHub client library, the second part of [ADR-0001](../adr/ADR-0001.md). `go.mod` names no such library today. `make build`, `make image`, `make container`, and `make install` were not run. The slice does not change them.
+Gates passed: `make lint`, `make test`, `make editorconfig`, `make format`, `make integration`, and `make ids`. `make project-report` names the new test for [ADR-0001](../adr/ADR-0001.md). Security: no secret, no listener, and no new input. Left alone: [ADR-0002](../adr/ADR-0002.md) and D-6 have no test. No finding in this change.
 
 ## Release
 
-The owner said: do not merge, push the branch, and stop before the merge. The project has no workflow, so `make editorconfig`, `make format`, `make lint`, `make test`, `make integration`, and `make coverage` ran on this machine, and each passed. What ships is one test file. The binary and the image of the project are unchanged. The slice ships with the merge of the branch `os-exec-import-test` into `main`. The owner does that merge after the review. The branch has the close of the task, so the board is correct on `main` after the merge. K-2 is deleted and its id is retired.
+The owner said do not merge. The slice ships with the merge of `os-exec-import-test` into `main`, which the owner does after review. K-2 is deleted.

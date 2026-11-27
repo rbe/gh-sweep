@@ -5,7 +5,7 @@ targets:
 dependencies:
   apm:
     - git: rbe/ralfskills
-      ref: v0.7.1
+      ref: v0.8.0
       skills:
         - r-plan
         - r-develop
@@ -30,10 +30,6 @@ dependencies:
         - r-board-merge-report
         - r-board-merge
         - r-component-upgrade
-        - r-upgrade-node-components
-        - r-upgrade-python-components
-        - r-upgrade-java-components
-        - r-upgrade-go-components
         - r-observability
         - r-performance
         - r-skills-review
