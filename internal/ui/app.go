@@ -1660,7 +1660,7 @@ j/k        move        h/l fold        e/c fold all
 a/n        select or clear what the filter shows
 x          select expired artifacts (they still use quota)
 u          storage usage of the scanned projects
-m          action menu: workflow runs and releases
+m          action menu: every write flag, report flag, and setting
 i          details of each artifact in the open project
 o          select artifacts older than N days
 t          keep the newest N of each name, select the rest

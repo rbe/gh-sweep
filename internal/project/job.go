@@ -47,6 +47,7 @@ func (f Filter) OlderThanCutoff(t, now time.Time) bool {
 var pastTense = map[string]string{
 	"delete":  "deleted",
 	"archive": "archived",
+	"change":  "changed",
 }
 
 // ActionText says that a write would happen with --dry-run, or that it

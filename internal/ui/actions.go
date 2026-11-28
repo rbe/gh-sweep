@@ -13,9 +13,11 @@ import (
 	"github.com/rbe/gh-sweep/internal/sweep"
 )
 
-// actionFlags are the write flags that the action screen offers, in the
-// order of its menu.
-var actionFlags = []string{"--delete-runs", "--delete-run-logs", "--delete-releases", "--delete-release-assets"}
+// menuActions are the actions of the menu: every flag of internal/sweep,
+// then the two settings flags.
+func menuActions() []sweep.Action {
+	return append(sweep.All(), sweep.SettingActions...)
+}
 
 // stage is one step of the action screen.
 type stage int
@@ -72,6 +74,15 @@ var listEntries = func(a sweep.Action, p project.Project, f project.Filter) ([]s
 	return a.List(p, f, time.Now())
 }
 
+// accountEntries reads the entries of an action that runs once for the
+// account. A test replaces it.
+var accountEntries = func(a sweep.Action, s sweep.Scope, f project.Filter) ([]sweep.Entry, error) {
+	return a.Account(s, f, time.Now())
+}
+
+// settingEntries reads the settings of one repository. A test replaces it.
+var settingEntries = sweep.SettingEntries
+
 // actionsListedMsg carries the rows of all targets and one error line for
 // each repository that could not be read.
 type actionsListedMsg struct {
@@ -92,13 +103,7 @@ func (m model) openActions() (model, tea.Cmd) {
 		m.status = "No project to run an action in"
 		return m, nil
 	}
-	var menu []sweep.Action
-	for _, flag := range actionFlags {
-		if a, ok := sweep.ByFlag(flag); ok {
-			menu = append(menu, a)
-		}
-	}
-	m.act = actionState{stage: stageMenu, menu: menu, targets: targets}
+	m.act = actionState{stage: stageMenu, menu: menuActions(), targets: targets}
 	m.screen = scrAction
 	return m, nil
 }
@@ -163,7 +168,7 @@ func (m model) chooseAction(a sweep.Action) (model, tea.Cmd) {
 	m.act.fields = nil
 	m.act.focus = 0
 	for _, name := range a.Filters {
-		in := newInput(sweep.FilterLabels[name])
+		in := newInput(fieldLabel(name))
 		in.Blur()
 		if name == "package-type" {
 			in.SetValue("container")
@@ -206,9 +211,46 @@ func (m *model) focusField(i int) {
 	m.act.fields[m.act.focus].input.Focus()
 }
 
-// listAction parses the form, checks the filters with the rules of the
-// command line, and reads the entries of each target.
+// fieldLabel names a field of the form.
+func fieldLabel(name string) string {
+	if label, ok := sweep.SettingLabels[name]; ok {
+		return label
+	}
+	return sweep.FilterLabels[name]
+}
+
+// isSetting is true for --retention-days and --actions-pr-approval.
+func isSetting(a sweep.Action) bool {
+	return a.List == nil && a.Account == nil
+}
+
+// scopeFor is the target of an action. Packages and billing belong to an
+// account: the organization or the user of the command line, else the
+// logged-in user. Every other action runs in the target repositories.
+func (m model) scopeFor(a sweep.Action) sweep.Scope {
+	switch a.Flag {
+	case "--delete-package-versions":
+		if m.opts.Org != "" || m.opts.User != "" {
+			return sweep.Scope{Org: m.opts.Org, User: m.opts.User}
+		}
+		return sweep.Scope{Mine: true}
+	case "--billing":
+		return sweep.Scope{Org: m.opts.Org, User: m.opts.User}
+	}
+	var names []string
+	for _, p := range m.act.targets {
+		names = append(names, p.NWO)
+	}
+	return sweep.Scope{Repos: names}
+}
+
+// listAction parses the form, checks it with the rules of the command
+// line, and reads the entries.
 func (m model) listAction() (model, tea.Cmd) {
+	a := m.act.action
+	if isSetting(a) {
+		return m.listSetting()
+	}
 	var f project.Filter
 	var given []string
 	for _, field := range m.act.fields {
@@ -217,7 +259,7 @@ func (m model) listAction() (model, tea.Cmd) {
 			continue
 		}
 		if err := sweep.SetFilter(&f, field.name, v); err != nil {
-			m.status = sweep.FilterLabels[field.name] + ": " + err.Error()
+			m.status = fieldLabel(field.name) + ": " + err.Error()
 			return m, nil
 		}
 		if field.name != "package-type" || v != "container" {
@@ -227,30 +269,63 @@ func (m model) listAction() (model, tea.Cmd) {
 	if f.PackageType == "" {
 		f.PackageType = "container"
 	}
-	var names []string
-	for _, p := range m.act.targets {
-		names = append(names, p.NWO)
-	}
-	if err := m.act.action.CheckFilters(given, f, sweep.Scope{Repos: names}); err != nil {
+	scope := m.scopeFor(a)
+	if err := a.CheckFilters(given, f, scope); err != nil {
 		m.status = err.Error()
 		return m, nil
 	}
 	m.act.filter = f
 	m.act.stage = stageListing
-	a, targets := m.act.action, m.act.targets
+	targets := m.act.targets
 	return m, func() tea.Msg {
+		if a.Account != nil {
+			entries, err := accountEntries(a, scope, f)
+			return listedRows("", entries, err, actionsListedMsg{})
+		}
 		var msg actionsListedMsg
 		for _, p := range targets {
 			entries, err := listEntries(a, p, f)
-			for _, e := range entries {
-				msg.rows = append(msg.rows, actionRow{nwo: p.NWO, entry: e, on: e.Apply != nil})
-			}
-			if err != nil {
-				msg.errs = append(msg.errs, p.NWO+": "+err.Error())
-			}
+			msg = listedRows(p.NWO, entries, err, msg)
 		}
 		return msg
 	}
+}
+
+// listSetting parses the value of a settings action and reads the
+// settings of each target.
+func (m model) listSetting() (model, tea.Cmd) {
+	var c project.SettingsChange
+	field := m.act.fields[0]
+	if err := sweep.SetSetting(&c, field.name, strings.TrimSpace(field.input.Value())); err != nil {
+		m.status = fieldLabel(field.name) + ": " + err.Error()
+		return m, nil
+	}
+	m.act.stage = stageListing
+	targets := m.act.targets
+	return m, func() tea.Msg {
+		var msg actionsListedMsg
+		for _, p := range targets {
+			entries, err := settingEntries(p, c)
+			msg = listedRows(p.NWO, entries, err, msg)
+		}
+		return msg
+	}
+}
+
+// listedRows adds the entries of one repository, or of the account when
+// nwo is empty, to msg. A row with a write starts checked.
+func listedRows(nwo string, entries []sweep.Entry, err error, msg actionsListedMsg) actionsListedMsg {
+	for _, e := range entries {
+		msg.rows = append(msg.rows, actionRow{nwo: nwo, entry: e, on: e.Apply != nil})
+	}
+	if err != nil {
+		label := nwo
+		if label == "" {
+			label = "account"
+		}
+		msg.errs = append(msg.errs, label+": "+err.Error())
+	}
+	return msg
 }
 
 // onActionsListed shows the preview of the rows.
@@ -260,6 +335,10 @@ func (m model) onActionsListed(msg actionsListedMsg) (tea.Model, tea.Cmd) {
 	m.act.cursor = 0
 	m.act.scroll = 0
 	m.act.stage = stagePreview
+	if m.act.action.ReadOnly {
+		m.act.next = len(m.act.rows)
+		return m.finishAction(), nil
+	}
 	return m, nil
 }
 
@@ -402,6 +481,10 @@ func (m model) applyNext(err error) (model, tea.Cmd) {
 		}
 	}
 	for m.act.next++; m.act.next < len(m.act.rows) && !m.act.rows[m.act.next].on; m.act.next++ {
+		if r := m.act.rows[m.act.next]; r.entry.Apply == nil {
+			m.act.done = append(m.act.done, r.entry.Line(m.opts.DryRun))
+			m.act.total = m.act.total.Add(r.entry.Total)
+		}
 	}
 	if m.act.stopped || m.act.next >= len(m.act.rows) {
 		return m.finishAction(), nil
@@ -417,6 +500,12 @@ func (m model) applyNext(err error) (model, tea.Cmd) {
 // failed rows in the report screen.
 func (m model) finishAction() model {
 	a := m.act.action
+	if a.ReadOnly {
+		for _, r := range m.act.rows {
+			m.act.done = append(m.act.done, r.entry.Line(m.opts.DryRun))
+			m.act.total = m.act.total.Add(r.entry.Total)
+		}
+	}
 	lines := append([]string{}, m.act.done...)
 	lines = append(lines, a.Total(m.act.total, m.opts.DryRun))
 	for _, e := range m.act.errs {
@@ -426,6 +515,7 @@ func (m model) finishAction() model {
 	switch {
 	case m.act.stopped:
 		note = "Stopped by ctrl-c. The rows after the last line did not run."
+	case a.ReadOnly:
 	case m.opts.DryRun:
 		note = "Dry run: no request changed GitHub."
 	}
@@ -447,14 +537,16 @@ func (m model) viewAction() string {
 	b.WriteString(dimStyle.Render(format.Fit("in "+m.targetNames(), m.width-1)) + "\n\n")
 	switch m.act.stage {
 	case stageMenu:
-		for i, a := range m.act.menu {
+		first, end := window(m.act.pick, len(m.act.menu), m.listH())
+		for i := first; i < end; i++ {
+			a := m.act.menu[i]
 			b.WriteString(pointer(i == m.act.pick) + a.Title + dimStyle.Render("  "+a.Flag) + "\n")
 		}
 		b.WriteString("\n" + dimStyle.Render("j/k move    enter choose    b back    q quit") + "\n")
 	case stageForm:
 		b.WriteString(nameStyle.Render(m.act.action.Title) + "\n\n")
 		for i, f := range m.act.fields {
-			b.WriteString(pointer(i == m.act.focus) + fmt.Sprintf("%-14s", f.name) + f.input.View() + "\n")
+			b.WriteString(pointer(i == m.act.focus) + fmt.Sprintf("%-20s", f.name) + f.input.View() + "\n")
 		}
 		b.WriteString("\n" + dimStyle.Render("Leave a field empty to not use it.") + "\n")
 		b.WriteString(dimStyle.Render("tab next field    enter show the entries    esc back") + "\n")
@@ -505,7 +597,11 @@ func (m model) viewActionRows(b *strings.Builder) {
 func (m model) viewActionConfirm(b *strings.Builder) {
 	n, bytes, repos := m.checked()
 	a := m.act.action
-	b.WriteString(errStyle.Render(fmt.Sprintf("%s %d %s in %d repositories", a.Verb, n, a.Noun, repos)) + "\n\n")
+	head := fmt.Sprintf("%s %d %s", a.Verb, n, a.Noun)
+	if a.Account == nil {
+		head += fmt.Sprintf(" in %d repositories", repos)
+	}
+	b.WriteString(errStyle.Render(head) + "\n\n")
 	if m.opts.DryRun {
 		b.WriteString(warnStyle.Render("Dry run: no request will change GitHub.") + "\n\n")
 	} else {
@@ -531,6 +627,20 @@ func (m model) targetNames() string {
 		names = append(names, p.NWO)
 	}
 	return strings.Join(names, ", ")
+}
+
+// window gives the first and the end index of the menu lines that fit in
+// h lines and show the line at cursor.
+func window(cursor, n, h int) (int, int) {
+	first := 0
+	if cursor >= h {
+		first = cursor - h + 1
+	}
+	end := first + h
+	if end > n {
+		end = n
+	}
+	return first, end
 }
 
 func pointer(on bool) string {
