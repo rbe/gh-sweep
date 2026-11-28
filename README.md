@@ -16,6 +16,7 @@ Expired artifacts cannot be downloaded, but they still count against the Actions
 - Podman, or Docker (`CONTAINER_ENGINE=docker`)
 - [GitHub CLI](https://cli.github.com) 2.40 or newer, logged in, when you run the tool on the host
 - `repo` scope if the repository is private, and to delete caches
+- `repo` scope and admin access to the repository, to change its settings with `--retention-days` or `--actions-pr-approval`
 
 Go does not need to be installed. `make build` and `make test` compile inside `docker.io/library/golang:1.22-bookworm` and write a binary for the machine you are on. The Go cache is kept in the container volumes `gh-sweep-gocache` and `gh-sweep-gomod`, not in the project directory. `make clean` removes `bin/`, those volumes, and a leftover `.cache` from an older build. `make clean FORCE=1` also force-removes the `gh-sweep` image and any containers still using it. On macOS that directory belongs to the container user, so `make clean` deletes it from inside the container.
 
@@ -104,6 +105,28 @@ total: artifacts 2, size 552 MB, expired 1, expired size 40.0 MB
 
 Use only one of `--summary`, `--usage`, and `--artifact-list`. `--artifact-list` together with `--caches-only` is an error. Errors from `gh` and the other flags behave as for `--summary`.
 
+### Repository settings
+
+```bash
+gh-sweep --retention-days 30 rbe/erechnung other/app
+gh-sweep --actions-pr-approval deny --org my-org
+gh-sweep --dry-run --retention-days 7 --actions-pr-approval allow --mine
+```
+
+`--retention-days N` sets the artifact and log retention to N days. This is the setting "Artifact and log retention" under Settings, Actions, General. GitHub applies the one value to checks, workflow runs, commit statuses, artifacts, and logs. A public repository accepts 1 to 90 days. The tool reads the maximum of each repository and refuses a larger value.
+
+`--actions-pr-approval allow` or `deny` sets "Allow GitHub Actions to create and approve pull requests". The default `GITHUB_TOKEN` permission (read or write) stays as it is. GitHub says that `allow` can be a security risk.
+
+The tool reads each setting first and prints one line for each repository and setting. It writes only a value that differs. With `--dry-run` it writes nothing and prints `would set`:
+
+```text
+rbe/erechnung: retention-days 90, set 30 (maximum 90)
+other/app: retention-days 30, unchanged (maximum 90)
+rbe/erechnung: actions-pr-approval allow, set deny
+```
+
+Name the repositories, or pass `--mine`, `--org`, or `--user`. With none of them, the tool changes nothing and exits with an error. Put the flags before the repository names. A settings flag together with `--summary`, `--usage`, or `--artifact-list` is an error. If one repository fails, for example because you are not an admin there, the tool prints the error, goes on with the next repository, and exits with status 1. An organization or enterprise policy can block either setting, and GitHub then refuses the change.
+
 ### Projects
 
 | Key | Action |
@@ -163,6 +186,21 @@ make test
 ```
 
 The tests run inside the Go container. `make coverage` reports the lines a change touched, and `make test-changed` then runs the tests of the packages that cover the change.
+
+## What gets changed
+
+The retention:
+
+```bash
+gh api -X PUT repos/OWNER/REPO/actions/permissions/artifact-and-log-retention -F days=30
+```
+
+The pull request setting:
+
+```bash
+gh api -X PUT repos/OWNER/REPO/actions/permissions/workflow \
+  -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false
+```
 
 ## Notes
 
