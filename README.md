@@ -37,6 +37,8 @@ gh-sweep uses the token of `gh`. A fine-grained personal access token works for 
 | `--delete-merged-branches` | Repository: Contents read and write, Pull requests read | `repo` |
 | `--delete-deployments` | Repository: Deployments read and write | `repo`, or `repo_deployment` for the deployment calls |
 | `--delete-unused-environments` | Repository: Actions read, Deployments read, Administration write | `repo` |
+| `--stale-list` | Repository: Metadata read | `repo` for private repositories |
+| `--archive` | Repository: Administration write | `repo`, and admin access to the repository |
 
 Each fine-grained token also has Repository: Metadata read. The REST endpoints of GitHub Packages are not in the list of endpoints that accept a fine-grained token, so `--delete-package-versions` needs a classic token. With the token of `gh auth login`, add the scopes with `gh auth refresh -s read:packages,delete:packages`. The table comes from the GitHub data files `fine-grained-pat.json` and `fine-grained-pat-permissions.json` (repository github/docs) and from the REST API description (repository github/rest-api-description), read on 2026-11-28. The tests of this project do not call GitHub, so no test proves the table. `gh repo list`, which gh-sweep runs when no repository is named, uses the GraphQL API of GitHub. It is expected to list only the repositories that the fine-grained token can access, but this is not tested.
 
@@ -292,6 +294,25 @@ total: deleted 1 deployments
 
 `--dry-run`, the guard against an empty target, and the errors behave as for `--delete-runs`.
 
+### Stale repositories
+
+```bash
+gh-sweep --stale-list                         # repositories of the logged-in user
+gh-sweep --stale-list --older-than 365 --org my-org
+gh-sweep --dry-run --archive --older-than 365 rbe/old-app rbe/old-lib
+```
+
+`--stale-list` prints each repository with the date of its last push, the days since then, its disk usage, and whether it is archived, oldest push first, then a total line. It changes nothing. `--older-than N` shows only repositories pushed more than N days ago. With no repository argument it lists the first 200 repositories of the logged-in user, `--org`, or `--user`:
+
+```text
+rbe/old-app: pushed 2024-11-28 (730 days ago), disk 10.0 MB, archived no
+total: repositories 1, disk 10.0 MB
+```
+
+The disk usage is the size that GitHub reports for the Git data. It does not hold artifacts, caches, or packages.
+
+`--archive` archives the repositories that you name. `--mine`, `--org`, and `--user` are an error, so that a list never archives by accident. A repository that is already archived stays as it is. With `--older-than N`, the tool refuses to archive a named repository pushed in the last N days, and goes on with the next one. An archived repository is read-only. The owner can unarchive it under Settings, General, Danger Zone. `--dry-run` writes nothing.
+
 ### Projects
 
 | Key | Action |
@@ -384,6 +405,12 @@ gh api -X DELETE repos/OWNER/REPO/environments/ENVIRONMENT
 ```
 
 ## What gets changed
+
+The archive state:
+
+```bash
+gh api -X PATCH repos/OWNER/REPO -F archived=true
+```
 
 The retention:
 
