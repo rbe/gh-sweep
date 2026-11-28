@@ -260,7 +260,7 @@ func parseCLI(args []string) (cli, error) {
 func allJobs() []job {
 	jobs := append(append([]job{}, runJobs...), cacheJobs...)
 	jobs = append(jobs, accountJobs...)
-	return append(jobs, billingJob)
+	return append(jobs, billingJob, branchJob)
 }
 
 // checkJob refuses a write flag together with a report flag or a settings
@@ -453,6 +453,8 @@ Options:
                        delete versions of the package that -package names, then exit
   -delete-codespaces   delete your stopped codespaces with no unsaved work, then exit
   -billing             print the billed GitHub Actions usage of this month, then exit
+  -delete-merged-branches
+                       delete branches whose pull request is merged or closed, then exit
 
 Filters of the write flags:
   -older-than n        only entries more than n days old
