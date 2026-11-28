@@ -170,14 +170,15 @@ func SummaryTable(inventories []Project) Table {
 // UsageTable is the storage usage breakdown as data, with the same rows as
 // UsageLines, largest first.
 func UsageTable(inventories []Project) Table {
+	return TopUsageTable(inventories, 0)
+}
+
+// TopUsageTable is UsageTable with the rows of TopUsageLines.
+func TopUsageTable(inventories []Project, top int) Table {
 	t := Table{Report: "usage",
 		Columns:      []string{"repository", "bytes", "artifact_bytes", "expired_artifact_bytes", "cache_bytes", "share_percent"},
 		TotalColumns: []string{"bytes", "artifact_bytes", "expired_artifact_bytes", "cache_bytes"}, Rows: [][]any{}}
-	used := usedRepositories(inventories)
-	var all usage
-	for _, u := range used {
-		all.add(u)
-	}
+	used, all := usageOf(inventories, top)
 	for _, u := range used {
 		t.Rows = append(t.Rows, []any{u.name, u.total(), u.artifacts, u.expired, u.caches, sharePercent(u.total(), all.total())})
 	}
@@ -197,13 +198,13 @@ func sharePercent(part, all int64) float64 {
 // ArtifactLines.
 func ArtifactTable(inventories []Project) Table {
 	t := Table{Report: "artifact-list",
-		Columns:      []string{"repository", "name", "id", "bytes", "created", "expires", "status"},
+		Columns:      []string{"repository", "name", "id", "workflow", "bytes", "created", "expires", "status", "large"},
 		TotalColumns: []string{"artifacts", "bytes", "expired", "expired_bytes"}, Rows: [][]any{}}
 	var count, expired int
 	var size, expiredSize int64
 	for _, p := range inventories {
 		for _, it := range artifactsBySize(p.Items) {
-			t.Rows = append(t.Rows, []any{p.NWO, it.Name, it.ID, it.Size, it.When, it.Expires, artifactStatus(it)})
+			t.Rows = append(t.Rows, []any{p.NWO, it.Name, it.ID, workflowOf(it), it.Size, it.When, it.Expires, artifactStatus(it), it.Large()})
 			count++
 			size += it.Size
 			if it.Expired {
@@ -214,4 +215,13 @@ func ArtifactTable(inventories []Project) Table {
 	}
 	t.Total = []any{count, size, expired, expiredSize}
 	return t
+}
+
+// workflowOf is the workflow of an artifact in JSON and CSV: its name, or
+// nil when the tool did not read it or GitHub gave none.
+func workflowOf(it Item) any {
+	if it.Workflow == "" || it.Workflow == "-" {
+		return nil
+	}
+	return it.Workflow
 }

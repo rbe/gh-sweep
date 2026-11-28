@@ -54,9 +54,17 @@ func artifactsBySize(items []Item) []Item {
 }
 
 func artifactLine(nwo string, it Item) string {
-	return fmt.Sprintf("%s: %s #%s, size %s, created %s, expires %s, status %s",
-		nwo, it.Name, it.ID, format.HumanSize(it.Size),
+	workflow := ""
+	if it.Workflow != "" {
+		workflow = ", workflow " + it.Workflow
+	}
+	line := fmt.Sprintf("%s: %s #%s%s, size %s, created %s, expires %s, status %s",
+		nwo, it.Name, it.ID, workflow, format.HumanSize(it.Size),
 		format.Date(it.When), format.Date(it.Expires), artifactStatus(it))
+	if it.Large() {
+		line += ", large"
+	}
+	return line
 }
 
 func artifactStatus(it Item) string {

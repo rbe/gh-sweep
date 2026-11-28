@@ -144,7 +144,30 @@ rbe/erechnung: coverage #2101113, size 40.0 MB, created 2026-08-01, expires 2026
 total: artifacts 2, size 552 MB, expired 1, expired size 40.0 MB
 ```
 
-Use only one of `--summary`, `--usage`, and `--artifact-list`. `--artifact-list` together with `--caches-only` is an error. Errors from `gh`, the skipped lines, and the other flags behave as for `--summary`.
+`--artifact-list` shows the workflow of each artifact. It reads the name of each workflow run once. If the run is gone, the workflow is `-`. A large artifact ends its line with `, large`. By default an artifact is large from 50 MB; the preferences change that. `--min-size 50MB` shows only the artifacts of that size or more, and the total counts only those. The size can be bytes, or a number with `KB`, `MB`, or `GB`.
+
+`--usage --top 5` shows only the 5 largest repositories. The total line and the shares still count every repository.
+
+Use only one of `--summary`, `--usage`, `--artifact-list`, and `--advice`. `--artifact-list` together with `--caches-only` is an error. Errors from `gh`, the skipped lines, and the other flags behave as for `--summary`.
+
+### Advice
+
+```bash
+gh-sweep --advice                     # repositories of the logged-in user
+gh-sweep --advice --org my-org
+```
+
+`--advice` prints numbered advice, then a total line, and exits. It deletes nothing:
+
+```text
+1. Largest repositories: rbe/erechnung (3.4 GB), other/app (12.0 MB).
+2. Expired artifacts: 12, size 1.2 GB. They still count against the quota. In a repository of the checklist, x selects them.
+3. Active artifacts older than 5 days: 4, size 300 MB. In a repository of the checklist, o selects them.
+4. Artifacts of 50.0 MB or more: 3, size 2.1 GB. Upload fewer files, or set a shorter retention with --retention-days.
+total: repositories 2, size 3.4 GB
+```
+
+A line with a count of 0 is left out. With nothing to say, the report prints `no advice: no expired, old, or large artifact, and no storage`. [ADR-0018](docs/adr/ADR-0018.md) holds the rules.
 
 ### Report formats and files
 
@@ -154,7 +177,7 @@ gh-sweep --usage --format csv --output usage.csv --mine
 gh-sweep --artifact-list --format json --output artifacts.json rbe/erechnung
 ```
 
-`--format` takes `text` (the default), `json`, or `csv`. `--output` writes the report to a file and nothing to standard output. Both work only with `--summary`, `--usage`, or `--artifact-list`. Put them before the repository names.
+`--format` takes `text` (the default), `json`, or `csv`. `--output` writes the report to a file and nothing to standard output. Both work only with `--summary`, `--usage`, `--artifact-list`, or `--advice`. Put them before the repository names.
 
 JSON is one object with the keys `report`, `rows`, `skipped`, and `total`. Sizes are bytes, and dates are RFC 3339 times in UTC, or `null`:
 
@@ -272,7 +295,7 @@ rbe/erechnung: release 1234 "v1.0.0", tag v1.0.0, created 2026-01-01, assets 2, 
 total: deleted 1 releases, size 3.0 MB
 ```
 
-`--delete-package-versions` deletes versions of one package. `--package NAME` names the package, and `--package-type` is `container` (the default), `npm`, `maven`, `rubygems`, `docker`, or `nuget`. Pass `--mine` for your own package or `--org NAME` for a package of an organization. Give at least one of `--untagged`, `--older-than N`, and `--keep N`. The newest version always stays. GitHub refuses to delete a version of a public package with more than 5,000 downloads.
+`--delete-package-versions` deletes versions of one package. `--package NAME` names the package, and `--package-type` is `container` (the default), `npm`, `maven`, `rubygems`, `docker`, or `nuget`. Pass `--mine` for your own package or `--org NAME` for a package of an organization. Give at least one of `--untagged`, `--older-than N`, and `--keep N`. The newest version always stays. A version with the tag `latest` also stays: it is the last image published from `main`, and it stays until another build of `main` replaces it. GitHub refuses to delete a version of a public package with more than 5,000 downloads.
 
 Warning: a multi-platform container image is a tagged index plus one untagged version for each platform. `--untagged` takes those platform versions too, and the tagged image then no longer pulls. Run `--dry-run` first, and use `--untagged` only for a package of single-platform images.
 
@@ -426,9 +449,27 @@ With `--dry-run`, the action sends no write request, and the result says what wo
 | r | Reload from GitHub. |
 | q | Quit. |
 
+The row of a large artifact ends with `large` in the warning color.
+
 Nothing is deleted until the confirmation. One large repository asks you to type its name. Marking more than one repository asks you to type `wipe`.
 
 Checking an artifact group selects every run with that name. Checking a cache group selects every entry with that key, which is the whole cache across refs. Open the group to keep one.
+
+## Preferences
+
+`p` on the project list opens the preferences. Tab moves to the next field, enter saves, and esc goes back without a change.
+
+| Field | Default | Used by |
+| --- | --- | --- |
+| old artifact, days | 5 | `--advice`, and the first value of the prompt of `o` |
+| large artifact, size | 50MB | the mark `large`, and `--advice` |
+| advice, repositories | 3 | the first line of `--advice` |
+| keep newest (t) | 3 | the first value of the prompt of `t` |
+| retention, days | 90 | the first value of the retention field in the action menu |
+| type to confirm, entries | 20 | more entries than this ask you to type the name or the verb |
+| type to confirm, size | 1GB | this size or more asks you to type the name or the verb |
+
+A size is bytes, or a number with `KB`, `MB`, or `GB`. gh-sweep saves the preferences to `gh-sweep/preferences.json` in the user configuration directory: `~/.config` on Linux, and `~/Library/Application Support` on macOS. The command line reads the same file. A key that the file does not name keeps its default. If the file has an unknown key or a value out of range, gh-sweep stops with the path and the key. In the container of `make run`, the file is lost when the container stops.
 
 ## What gets deleted
 

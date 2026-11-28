@@ -26,11 +26,7 @@ const (
 	scrPrompt
 	scrReport
 	scrAction
-)
-
-const (
-	strictCount = 20
-	strictBytes = int64(1 << 30)
+	scrPreferences
 )
 
 // Options is the checklist the command line asked for.
@@ -43,6 +39,9 @@ type Options struct {
 	WantCache bool
 	DryRun    bool
 	Filter    string
+	// PreferencesPath is the file that the preferences screen writes. An
+	// empty path keeps a change until gh-sweep quits.
+	PreferencesPath string
 }
 
 type delJob struct {
@@ -70,6 +69,7 @@ type confirmState struct {
 
 type model struct {
 	opts    Options
+	prefs   preferencesState
 	screen  screen
 	width   int
 	height  int
@@ -367,6 +367,8 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.onReport(s)
 	case scrAction:
 		return m.onAction(s)
+	case scrPreferences:
+		return m.onPreferences(s)
 	case scrResult:
 		if s == "q" {
 			return m, tea.Quit
@@ -484,6 +486,8 @@ func (m model) onProjects(s string) (tea.Model, tea.Cmd) {
 		m.openUsage()
 	case "m":
 		return m.openActions()
+	case "p":
+		return m.openPreferences()
 	case "?":
 		m.helpFrom = scrProjects
 		m.screen = scrHelp
@@ -540,9 +544,9 @@ func (m model) onItems(s string) (tea.Model, tea.Cmd) {
 		n := m.projects[m.open].SelectExpired(m.filter)
 		m.status = fmt.Sprintf("Selected %d expired artifacts", n)
 	case "o":
-		return m.startPrompt("older", "Select artifacts older than how many days?", "30")
+		return m.startPrompt("older", "Select artifacts older than how many days?", strconv.Itoa(project.Prefs().OldArtifactDays))
 	case "t":
-		return m.startPrompt("keep", "Keep how many of the newest of each artifact name?", "3")
+		return m.startPrompt("keep", "Keep how many of the newest of each artifact name?", strconv.Itoa(project.Prefs().KeepNewest))
 	case "d":
 		return m.startItemDelete()
 	case "/":
@@ -889,7 +893,7 @@ func (m model) beginWipe() (model, tea.Cmd) {
 		return m, nil
 	}
 	m.confirm = confirmState{
-		scope: "projects", strict: n > 1 || items > strictCount || bytes >= strictBytes,
+		scope: "projects", strict: n > 1 || items > project.Prefs().ConfirmEntries || bytes >= project.Prefs().ConfirmBytes,
 		count: items, bytes: bytes, expired: expired, lines: lines, nwo: only.NWO,
 	}
 	if n > 1 {
@@ -932,7 +936,7 @@ func (m model) startItemDelete() (model, tea.Cmd) {
 		lines = append(lines, fmt.Sprintf("  %s    %d    %s", g.Name, on, format.HumanSize(sz)))
 	}
 	m.confirm = confirmState{
-		scope: "items", strict: n > strictCount || bytes >= strictBytes,
+		scope: "items", strict: n > project.Prefs().ConfirmEntries || bytes >= project.Prefs().ConfirmBytes,
 		token: p.Name, nwo: p.NWO, count: n, bytes: bytes, lines: lines,
 	}
 	m.screen = scrConfirm
@@ -957,6 +961,9 @@ func (m model) startPrompt(kind, title, placeholder string) (model, tea.Cmd) {
 	m.promptFrom = m.screen
 	m.screen = scrPrompt
 	m.input = newInput(placeholder)
+	if kind != "add" {
+		m.input.SetValue(placeholder)
+	}
 	m.status = title
 	return m, textinput.Blink
 }
@@ -1250,6 +1257,8 @@ func (m model) View() string {
 		return m.viewReport()
 	case scrAction:
 		return m.viewAction()
+	case scrPreferences:
+		return m.viewPreferences()
 	default:
 		return m.viewProjects()
 	}
@@ -1301,7 +1310,7 @@ func (m model) viewProjects() string {
 	}
 	b.WriteString(dimStyle.Render(format.Fit(sum, m.width-1)))
 	b.WriteByte('\n')
-	keys := "space mark    enter pick    a all    n none    d wipe    s scan    u usage    m actions    + add    / find    q quit"
+	keys := "space mark    enter pick    a all    n none    d wipe    s scan    u usage    m actions    p preferences    + add    / find    q quit"
 	if m.projFilterEdit {
 		keys = "type to filter    enter done    esc clear"
 	}
@@ -1473,6 +1482,9 @@ func (m model) itemLine(cur bool, r project.ViewRow) string {
 			state = "all"
 		}
 		right := fmt.Sprintf("%s · %s · %s · #%s", it.Meta, format.HumanTime(it.When), format.HumanSize(it.Size), it.ID)
+		if it.Large() {
+			right += " · large"
+		}
 		if it.Expired {
 			right += " · expired"
 		} else if !it.Expires.IsZero() {
@@ -1519,14 +1531,37 @@ func (m model) renderRow(level int, cur bool, state, label, right string, sectio
 	} else if cur {
 		lab = nameStyle.Render(lab)
 	}
-	meta := right
-	if strings.HasSuffix(strings.TrimSpace(right), "expired") {
-		base := strings.TrimRight(strings.TrimSuffix(right, "expired"), " ·")
-		meta = dimStyle.Render(base) + " " + warnStyle.Render("expired")
-	} else if !cur {
-		meta = dimStyle.Render(right)
+	return prefix[:len(indent)] + mark + " " + box + " " + lab + "  " + styleMeta(right, cur)
+}
+
+// warnTags are the parts of a row's right side that stand in the warning
+// color: an expired artifact, and a large artifact.
+var warnTags = map[string]bool{"expired": true, "large": true}
+
+// styleMeta draws the parts of the right side of a row. A part in warnTags
+// is in the warning color, and the other parts are faint. With no such part,
+// the row under the cursor keeps its right side plain.
+func styleMeta(right string, cur bool) string {
+	parts := strings.Split(right, " · ")
+	warn := false
+	for _, part := range parts {
+		warn = warn || warnTags[strings.TrimSpace(part)]
 	}
-	return prefix[:len(indent)] + mark + " " + box + " " + lab + "  " + meta
+	if !warn {
+		if cur {
+			return right
+		}
+		return dimStyle.Render(right)
+	}
+	styled := make([]string, len(parts))
+	for i, part := range parts {
+		if warnTags[strings.TrimSpace(part)] {
+			styled[i] = warnStyle.Render(part)
+		} else {
+			styled[i] = dimStyle.Render(part)
+		}
+	}
+	return strings.Join(styled, dimStyle.Render(" · "))
 }
 
 func (m model) viewConfirm() string {
@@ -1661,6 +1696,7 @@ a/n        select or clear what the filter shows
 x          select expired artifacts (they still use quota)
 u          storage usage of the scanned projects
 m          action menu: every write flag, report flag, and setting
+p          preferences: limits, defaults, and confirmation sizes
 i          details of each artifact in the open project
 o          select artifacts older than N days
 t          keep the newest N of each name, select the rest

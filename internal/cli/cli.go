@@ -24,6 +24,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "gh-sweep: %s\n", err)
 		return 2
 	}
+	if cmd.options.PreferencesPath, err = loadPreferences(); err != nil {
+		fmt.Fprintf(stderr, "gh-sweep: %s\n", err)
+		return 1
+	}
 	switch {
 	case cmd.job != nil:
 		err = runJob(cmd.options, cmd.job, cmd.filter, stdout, stderr)
@@ -39,6 +43,20 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// loadPreferences reads the preferences file and puts its values in force.
+// It gives the path of the file, which the checklist writes.
+func loadPreferences() (string, error) {
+	path, err := project.PreferencesPath()
+	if err != nil {
+		return "", nil
+	}
+	p, err := project.LoadPreferences(path)
+	if err != nil {
+		return "", err
+	}
+	return path, project.UsePreferences(p)
 }
 
 // command is one parsed command line: the options of the checklist, the
@@ -65,7 +83,10 @@ func parseCLI(args []string) (command, error) {
 	summary := fs.Bool("summary", false, "print one line for each repository and a total line, then exit")
 	usage := fs.Bool("usage", false, "print the storage of each repository, largest first, then exit")
 	artifactList := fs.Bool("artifact-list", false, "print one line for each artifact with size, dates, and status, then exit")
-	format := fs.String("format", "text", "write the report as text, json, or csv")
+	advice := fs.Bool("advice", false, "print advice on what to delete, then exit")
+	minSize := fs.String("min-size", "0", "with -artifact-list, show only artifacts of this size or more")
+	top := fs.Int("top", 0, "with -usage, show only the largest n repositories")
+	reportFormat := fs.String("format", "text", "write the report as text, json, or csv")
 	output := fs.String("output", "", "write the report to this file instead of standard output")
 	filter := fs.String("filter", "", "initial item filter")
 	var settings project.SettingsChange
@@ -100,18 +121,23 @@ func parseCLI(args []string) (command, error) {
 	if *artOnly && *cacheOnly {
 		return command{}, fmt.Errorf("use either --artifacts-only or --caches-only")
 	}
-	chosen, err := chooseReport(*summary, *usage, *artifactList, *cacheOnly)
+	setFlags := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
+	minBytes, err := project.ParseSize(*minSize)
 	if err != nil {
 		return command{}, err
 	}
-	formatGiven := false
-	fs.Visit(func(f *flag.Flag) {
-		if f.Name == "format" {
-			formatGiven = true
-		}
+	chosen, err := chooseReport(reportFlags{
+		summary: *summary, usage: *usage, artifactList: *artifactList, advice: *advice,
+		cacheOnly: *cacheOnly,
+		minSize:   minBytes, minSizeGiven: setFlags["min-size"],
+		top: *top, topGiven: setFlags["top"],
 	})
-	out := reportOutput{format: *format, path: *output}
-	if err := checkReportOutput(out, chosen, formatGiven); err != nil {
+	if err != nil {
+		return command{}, err
+	}
+	out := reportOutput{format: *reportFormat, path: *output}
+	if err := checkReportOutput(out, chosen, setFlags["format"]); err != nil {
 		return command{}, err
 	}
 	named := len(repos) > 0 || *org != "" || *user != "" || *mine

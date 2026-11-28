@@ -12,16 +12,33 @@ import (
 // gives the size in bytes, the artifacts, the expired artifacts, the caches,
 // and the share of the total. It reads the numbers and changes nothing.
 func UsageLines(inventories []Project) []string {
-	used := usedRepositories(inventories)
-	var all usage
-	for _, u := range used {
-		all.add(u)
-	}
+	return TopUsageLines(inventories, 0)
+}
+
+// TopUsageLines is UsageLines with only the top largest repositories. The
+// total line and each share still count every repository. A top of 0 shows
+// every repository.
+func TopUsageLines(inventories []Project, top int) []string {
+	used, all := usageOf(inventories, top)
 	lines := make([]string, 0, len(used)+1)
 	for _, u := range used {
 		lines = append(lines, u.line(all.total()))
 	}
 	return append(lines, all.totalLine())
+}
+
+// usageOf gives the repositories that use storage, largest first, cut to
+// the top largest when top is more than 0, and the usage of all of them.
+func usageOf(inventories []Project, top int) ([]usage, usage) {
+	used := usedRepositories(inventories)
+	var all usage
+	for _, u := range used {
+		all.add(u)
+	}
+	if top > 0 && len(used) > top {
+		used = used[:top]
+	}
+	return used, all
 }
 
 // usage is the storage of one repository, or of all repositories.

@@ -20,9 +20,12 @@ type Item struct {
 	// Expires is the time GitHub deletes an artifact. It is zero for a cache.
 	Expires time.Time
 	Run     string
-	On      bool
-	Dead    bool
-	Group   int
+	// Workflow is the name of the workflow that made an artifact. It is
+	// empty when the tool did not read it, and "-" when GitHub gave none.
+	Workflow string
+	On       bool
+	Dead     bool
+	Group    int
 }
 
 // Group is every artifact of one name, or every cache entry of one key.

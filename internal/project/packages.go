@@ -22,7 +22,9 @@ type PackageVersion struct {
 }
 
 // SelectPackageVersions gives the versions that a delete takes. The newest
-// version always stays, and so do the newest Keep. With Untagged only
+// version always stays, and so do the newest Keep. A version with the tag
+// latest always stays, because it is the last image published from the
+// default branch until another build replaces it. With Untagged only
 // versions without a tag are taken.
 func SelectPackageVersions(versions []PackageVersion, f Filter, now time.Time) []PackageVersion {
 	sorted := append([]PackageVersion{}, versions...)
@@ -33,12 +35,25 @@ func SelectPackageVersions(versions []PackageVersion, f Filter, now time.Time) [
 	}
 	var out []PackageVersion
 	for i, v := range sorted {
-		if i < keep || (f.Untagged && len(v.Tags) > 0) || !f.OlderThanCutoff(v.Created, now) {
+		if i < keep || v.HasTag(LatestTag) || (f.Untagged && len(v.Tags) > 0) || !f.OlderThanCutoff(v.Created, now) {
 			continue
 		}
 		out = append(out, v)
 	}
 	return out
+}
+
+// LatestTag is the tag that the default-branch publish moves to its image.
+const LatestTag = "latest"
+
+// HasTag tells whether the version wears the tag.
+func (v PackageVersion) HasTag(tag string) bool {
+	for _, t := range v.Tags {
+		if t == tag {
+			return true
+		}
+	}
+	return false
 }
 
 // PackageVersionLine is the line of one version after

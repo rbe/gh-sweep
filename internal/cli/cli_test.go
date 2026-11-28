@@ -153,6 +153,7 @@ func mockInventory(t *testing.T) string {
 		t.Fatal(err)
 	}
 	t.Setenv("GH_MOCK_DIR", api)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	return log
 }
 

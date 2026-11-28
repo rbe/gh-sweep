@@ -146,3 +146,22 @@ func TestAccountFlagsRefuseAMissingTargetOrPackage(t *testing.T) {
 		t.Fatalf("gh was called: %v", err)
 	}
 }
+
+func TestDeletePackageVersionsKeepsTheVersionTaggedLatestUntilAnotherBuildReplacesIt(t *testing.T) {
+	log := mockAccount(t)
+	mockAPI(t, "user/packages/container/app/versions",
+		fields("913", "sha256:feature", "1.2.0-13", "2026-11-20T00:00:00Z")+
+			fields("912", "sha256:main", "latest,1.2.0-12", "2026-10-01T00:00:00Z")+
+			fields("911", "sha256:old", "1.2.0-11", "2026-09-01T00:00:00Z"))
+
+	var stdout, stderr bytes.Buffer
+	status := Run([]string{"--delete-package-versions", "--package", "app", "--older-than", "30", "--mine"}, &stdout, &stderr)
+	want := "user: container app version 911 sha256:old, tags 1.2.0-11, created 2026-09-01, deleted\n" +
+		"total: deleted 1 package versions\n"
+	if status != 0 || stdout.String() != want || stderr.Len() != 0 {
+		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
+	}
+	if calls := readLog(t, log); strings.Contains(calls, "versions/912") || strings.Contains(calls, "versions/913") {
+		t.Fatalf("gh calls\n%s", calls)
+	}
+}

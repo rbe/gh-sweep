@@ -90,10 +90,10 @@ func TestArtifactListWritesCSVWithASkippedRecord(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	status := Run([]string{"--artifact-list", "--format", "csv", "other/lib", "acme/widgets"}, &stdout, &stderr)
-	want := "repository,name,id,bytes,created,expires,status,result,error\n" +
-		"acme/widgets,dist,101,1048576,2026-11-12T12:00:00Z,2027-02-10T12:00:00Z,active,ok,\n" +
-		"acme/widgets,dist,100,524288,2026-11-10T12:00:00Z,2026-11-20T12:00:00Z,expired,ok,\n" +
-		"other/lib,,,,,,,skipped,HTTP 404: Not Found\n"
+	want := "repository,name,id,workflow,bytes,created,expires,status,large,result,error\n" +
+		"acme/widgets,dist,101,,1048576,2026-11-12T12:00:00Z,2027-02-10T12:00:00Z,active,false,ok,\n" +
+		"acme/widgets,dist,100,,524288,2026-11-10T12:00:00Z,2026-11-20T12:00:00Z,expired,false,ok,\n" +
+		"other/lib,,,,,,,,,skipped,HTTP 404: Not Found\n"
 	if status != 1 || stdout.String() != want {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}
