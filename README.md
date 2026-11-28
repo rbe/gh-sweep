@@ -34,6 +34,9 @@ gh-sweep uses the token of `gh`. A fine-grained personal access token works for 
 | `--delete-package-versions` | **Does not work with a fine-grained token.** Use a classic token. | `read:packages` and `delete:packages` |
 | `--delete-codespaces` | Repository: Codespaces read and write | `codespace` |
 | `--billing` | User: Plan read. With `--org`: Organization: Administration read | The REST API description names no scope. |
+| `--delete-merged-branches` | Repository: Contents read and write, Pull requests read | `repo` |
+| `--delete-deployments` | Repository: Deployments read and write | `repo`, or `repo_deployment` for the deployment calls |
+| `--delete-unused-environments` | Repository: Actions read, Deployments read, Administration write | `repo` |
 
 Each fine-grained token also has Repository: Metadata read. The REST endpoints of GitHub Packages are not in the list of endpoints that accept a fine-grained token, so `--delete-package-versions` needs a classic token. With the token of `gh auth login`, add the scopes with `gh auth refresh -s read:packages,delete:packages`. The table comes from the GitHub data files `fine-grained-pat.json` and `fine-grained-pat-permissions.json` (repository github/docs) and from the REST API description (repository github/rest-api-description), read on 2026-11-28. The tests of this project do not call GitHub, so no test proves the table. `gh repo list`, which gh-sweep runs when no repository is named, uses the GraphQL API of GitHub. It is expected to list only the repositories that the fine-grained token can access, but this is not tested.
 
@@ -246,6 +249,49 @@ total: items 1, gross $9.60, net $0.00
 
 The amounts are the US dollars that GitHub reports. The net amount is what GitHub bills after the included usage. GitHub marks this endpoint as public preview, and it gives data of the last 24 months only. A repository argument is an error, because GitHub bills an account.
 
+### Merged branches
+
+```bash
+gh-sweep --dry-run --delete-merged-branches rbe/erechnung
+gh-sweep --delete-merged-branches --mine
+```
+
+`--delete-merged-branches` deletes each branch whose pull request is merged or closed, prints one line for each branch, then a total line, and exits:
+
+```text
+rbe/erechnung: branch feature/login, pull request #12 merged, deleted
+rbe/erechnung: branch try-ci, pull request #15 closed, deleted
+total: deleted 2 branches
+```
+
+A branch stays when:
+
+- it is the default branch, or a branch protection rule covers it,
+- an open pull request has it as head or as base,
+- its head commit differs from the head commit of the closed pull request, because it then holds commits that no pull request has,
+- the pull request came from a fork. The tool deletes only branches of the repository itself.
+
+The tool reads every pull request of the repository, so a repository with many pull requests takes one call for each 100. `--dry-run`, the guard against an empty target, and the errors behave as for `--delete-runs`. A deleted branch can be restored from the page of its pull request on GitHub.
+
+### Deployments and environments
+
+```bash
+gh-sweep --dry-run --delete-deployments --keep 3 rbe/erechnung
+gh-sweep --delete-deployments --older-than 90 --mine
+gh-sweep --dry-run --delete-unused-environments rbe/erechnung
+```
+
+`--delete-deployments` deletes old deployments. In each environment the newest deployment always stays, because it can be the active one. `--keep N` keeps the newest N of each environment, and `--older-than N` takes deployments created more than N days ago. Give at least one. GitHub deletes only an inactive deployment when a repository has more than one, so the tool first sets each deployment inactive and then deletes it:
+
+```text
+rbe/erechnung: deployment 1234, environment production, ref main, created 2026-05-01, deleted
+total: deleted 1 deployments
+```
+
+`--delete-unused-environments` deletes each environment that has no deployment. With `--older-than N` it also deletes an environment whose newest deployment is more than N days old. GitHub deletes the secrets, the variables, and the protection rules of the environment with it, and they cannot be restored. Run `--dry-run` first.
+
+`--dry-run`, the guard against an empty target, and the errors behave as for `--delete-runs`.
+
 ### Projects
 
 | Key | Action |
@@ -321,6 +367,20 @@ gh api -X DELETE repos/OWNER/REPO/releases/assets/ASSET_ID
 gh api -X DELETE user/packages/TYPE/NAME/versions/VERSION_ID
 gh api -X DELETE orgs/ORG/packages/TYPE/NAME/versions/VERSION_ID
 gh api -X DELETE user/codespaces/CODESPACE_NAME
+```
+
+A branch:
+
+```bash
+gh api -X DELETE repos/OWNER/REPO/git/refs/heads/BRANCH
+```
+
+A deployment, and an environment:
+
+```bash
+gh api -X POST repos/OWNER/REPO/deployments/DEPLOYMENT_ID/statuses -f state=inactive
+gh api -X DELETE repos/OWNER/REPO/deployments/DEPLOYMENT_ID
+gh api -X DELETE repos/OWNER/REPO/environments/ENVIRONMENT
 ```
 
 ## What gets changed
