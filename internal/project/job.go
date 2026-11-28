@@ -9,12 +9,14 @@ import (
 // selects everything. OlderThan is a number of days, Keep is a number of
 // newest entries that stay.
 type Filter struct {
-	OlderThan int
-	Branch    string
-	Status    string
-	KeyPrefix string
-	Keep      int
-	Untagged  bool
+	OlderThan   int
+	Branch      string
+	Status      string
+	KeyPrefix   string
+	Keep        int
+	Untagged    bool
+	Package     string
+	PackageType string
 }
 
 // Total is what a job counted in one repository or in all of them: the
