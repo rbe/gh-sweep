@@ -1,26 +1,55 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"os"
+	"strings"
 
 	"github.com/rbe/gh-sweep/internal/gh"
 	"github.com/rbe/gh-sweep/internal/project"
 	"github.com/rbe/gh-sweep/internal/ui"
 )
 
-// report is one plain-text report: its name in a note, and the function
-// that turns the loaded inventories into its lines.
+// report is one report: its name in a note, the function that turns the
+// loaded inventories into its lines, and the function that turns them into
+// its table for JSON and CSV.
 type report struct {
 	name  string
 	lines func([]project.Project) []string
+	table func([]project.Project) project.Table
+}
+
+// reportOutput is where a report goes and in which format: text, json, or
+// csv. An empty path is standard output.
+type reportOutput struct {
+	format string
+	path   string
+}
+
+// reportFormats are the values of --format.
+var reportFormats = []string{"text", "json", "csv"}
+
+// checkReportOutput refuses an unknown format, and --format or --output
+// without a report flag.
+func checkReportOutput(out reportOutput, chosen *report, formatGiven bool) error {
+	if (formatGiven || out.path != "") && chosen == nil {
+		return fmt.Errorf("--format and --output need --summary, --usage, or --artifact-list")
+	}
+	for _, f := range reportFormats {
+		if out.format == f {
+			return nil
+		}
+	}
+	return fmt.Errorf("--format takes %s, not %q", strings.Join(reportFormats, ", "), out.format)
 }
 
 // printReport loads the inventories and writes the lines of the report to
 // stdout. A repository that cannot be loaded gets a skipped line before the
 // total line, the other repositories still get their lines, and the result
 // is an error that counts the skipped repositories.
-func printReport(o ui.Options, r *report, stdout, stderr io.Writer) error {
+func printReport(o ui.Options, r *report, out reportOutput, stdout, stderr io.Writer) error {
 	if err := gh.Auth(); err != nil {
 		return err
 	}
@@ -33,14 +62,47 @@ func printReport(o ui.Options, r *report, stdout, stderr io.Writer) error {
 		return err
 	}
 	inventories, skipped := loadInventories(repositories, o.WantArt, o.WantCache)
-	for _, line := range withSkipped(r.lines(inventories), skipped) {
-		fmt.Fprintln(stdout, line)
+	if err := writeReport(r, out, inventories, skipped, stdout); err != nil {
+		return err
 	}
 	if note != "" {
 		fmt.Fprintf(stderr, "gh-sweep: %s\n", note)
 	}
 	if len(skipped) > 0 {
 		return fmt.Errorf("the %s skipped %d of %d repositories", r.name, len(skipped), len(repositories))
+	}
+	return nil
+}
+
+// writeReport renders the report in the chosen format, then writes it to
+// the file of --output, or to stdout when there is no file.
+func writeReport(r *report, out reportOutput, inventories []project.Project, skipped []project.Skipped, stdout io.Writer) error {
+	var body bytes.Buffer
+	if err := renderReport(&body, r, out.format, inventories, skipped); err != nil {
+		return err
+	}
+	if out.path == "" {
+		_, err := stdout.Write(body.Bytes())
+		return err
+	}
+	return os.WriteFile(out.path, body.Bytes(), 0o644)
+}
+
+// renderReport writes the report as text lines, as JSON, or as CSV.
+func renderReport(w io.Writer, r *report, format string, inventories []project.Project, skipped []project.Skipped) error {
+	switch format {
+	case "json", "csv":
+		t := r.table(inventories)
+		t.Skipped = skipped
+		if format == "json" {
+			return t.WriteJSON(w)
+		}
+		return t.WriteCSV(w)
+	}
+	for _, line := range withSkipped(r.lines(inventories), skipped) {
+		if _, err := fmt.Fprintln(w, line); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -134,11 +196,11 @@ func chooseReport(summary, usage, artifactList, cacheOnly bool) (*report, error)
 	}
 	switch {
 	case summary:
-		return &report{name: "summary", lines: project.SummaryLines}, nil
+		return &report{name: "summary", lines: project.SummaryLines, table: project.SummaryTable}, nil
 	case usage:
-		return &report{name: "usage breakdown", lines: project.UsageLines}, nil
+		return &report{name: "usage breakdown", lines: project.UsageLines, table: project.UsageTable}, nil
 	case artifactList:
-		return &report{name: "artifact list", lines: project.ArtifactLines}, nil
+		return &report{name: "artifact list", lines: project.ArtifactLines, table: project.ArtifactTable}, nil
 	}
 	return nil, nil
 }

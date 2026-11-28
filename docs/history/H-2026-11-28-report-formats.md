@@ -3,7 +3,7 @@ id: H-2026-11-28-report-formats
 title: The reports write text, JSON, or CSV to standard output or to a file
 status: started
 adrs: [ADR-0017]
-skills: [r-plan, r-security, r-privacy, r-ux-ui-design, r-api-design, r-observability, r-performance]
+skills: [r-plan, r-security, r-privacy, r-ux-ui-design, r-api-design, r-observability, r-performance, r-develop, r-go]
 roadmap: [W-14]
 proposals: []
 ---
@@ -31,7 +31,7 @@ performance: no new gh call. The report is built in memory once, as before.
 
 ## Develop
 
-Not invoked yet.
+`internal/project/table.go` adds the type `Table`, its methods `WriteJSON` and `WriteCSV`, and the functions `SummaryTable`, `UsageTable`, and `ArtifactTable`. They reuse `usedRepositories` and `artifactsBySize`, so the rows keep the order of the text lines. `internal/cli/report.go` adds `reportOutput`, `checkReportOutput`, `writeReport`, and `renderReport`. `internal/cli/cli.go` reads `--format` and `--output`, and `internal/cli/usage.go` gets their two help lines. The README gets the section "Report formats and files". During Develop the CSV header of the artifact list had the column `status` twice, so the extra column became `result`, and [ADR-0017](../adr/ADR-0017.md) says so. r-go applied. `make test-changed TOOLS=host` passed for `./internal/cli` and `./internal/project`. `make coverage TOOLS=host` reports 170 of 200 changed lines covered. The 30 missing lines are error returns of `json.Marshal`, `json.Indent`, and writes to a `bytes.Buffer`, which these values cannot make fail. `r-review` runs the gates.
 
 ## Review
 
