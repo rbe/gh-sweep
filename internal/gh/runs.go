@@ -84,3 +84,14 @@ func fieldLines(raw string, n int) [][]string {
 	}
 	return out
 }
+
+// splitNonEmpty splits s at sep and drops empty parts.
+func splitNonEmpty(s, sep string) []string {
+	var out []string
+	for _, part := range strings.Split(s, sep) {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}

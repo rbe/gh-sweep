@@ -9,12 +9,14 @@ import (
 // selects everything. OlderThan is a number of days, Keep is a number of
 // newest entries that stay.
 type Filter struct {
-	OlderThan int
-	Branch    string
-	Status    string
-	KeyPrefix string
-	Keep      int
-	Untagged  bool
+	OlderThan   int
+	Branch      string
+	Status      string
+	KeyPrefix   string
+	Keep        int
+	Untagged    bool
+	Package     string
+	PackageType string
 }
 
 // Total is what a job counted in one repository or in all of them: the
@@ -22,11 +24,13 @@ type Filter struct {
 type Total struct {
 	Count int
 	Bytes int64
+	Gross float64
+	Net   float64
 }
 
 // Add gives the sum of two totals.
 func (t Total) Add(o Total) Total {
-	return Total{Count: t.Count + o.Count, Bytes: t.Bytes + o.Bytes}
+	return Total{Count: t.Count + o.Count, Bytes: t.Bytes + o.Bytes, Gross: t.Gross + o.Gross, Net: t.Net + o.Net}
 }
 
 // OlderThanCutoff is true when t is more than OlderThan days before now.

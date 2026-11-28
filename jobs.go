@@ -30,6 +30,11 @@ type job struct {
 	readOnly    bool
 	total       func(project.Total, bool) string
 	each        func(p project.Project, f project.Filter, dryRun bool) ([]string, project.Total, error)
+	// account, when set, runs once for the account instead of each for
+	// each repository. target then checks the command line in place of
+	// checkWriteTarget.
+	account func(o ui.Options, f project.Filter, dryRun bool) ([]string, project.Total, error)
+	target  func(o ui.Options, f project.Filter) error
 }
 
 // jobFlags holds the write flags and the filter flags of one command line.
@@ -42,7 +47,11 @@ type jobFlags struct {
 }
 
 // filterFlags are the names of the filter flags.
-var filterFlags = []string{"older-than", "branch", "status", "key-prefix", "keep", "untagged"}
+var filterFlags = []string{"older-than", "branch", "status", "key-prefix", "keep", "untagged", "package", "package-type"}
+
+// packageFlags name the package. They select no version, so they do not
+// count as a filter.
+var packageFlags = []string{"package", "package-type"}
 
 // registerJobs adds the write flags of the jobs and the filter flags.
 func registerJobs(fs *flag.FlagSet, jobs []job) *jobFlags {
@@ -77,6 +86,8 @@ func registerJobs(fs *flag.FlagSet, jobs []job) *jobFlags {
 	})
 	fs.StringVar(&jf.filter.KeyPrefix, "key-prefix", "", "select only caches whose key starts with this text")
 	fs.BoolVar(&jf.filter.Untagged, "untagged", false, "select only untagged package versions")
+	fs.StringVar(&jf.filter.Package, "package", "", "the name of the package")
+	fs.StringVar(&jf.filter.PackageType, "package-type", "container", "the type of the package: container, npm, maven, rubygems, docker, or nuget")
 	return jf
 }
 
@@ -105,7 +116,7 @@ func (jf *jobFlags) choose() (*job, error) {
 		if !given[name] {
 			continue
 		}
-		filtered = true
+		filtered = filtered || !contains(packageFlags, name)
 		if j == nil {
 			return nil, fmt.Errorf("--%s selects entries for a write flag, such as --delete-runs. Pass one", name)
 		}
@@ -114,7 +125,13 @@ func (jf *jobFlags) choose() (*job, error) {
 		}
 	}
 	if j != nil && j.needsFilter && !filtered {
-		return nil, fmt.Errorf("%s needs at least one of --%s", j.flag, strings.Join(j.filters, ", --"))
+		var selecting []string
+		for _, name := range j.filters {
+			if !contains(packageFlags, name) {
+				selecting = append(selecting, name)
+			}
+		}
+		return nil, fmt.Errorf("%s needs at least one of --%s", j.flag, strings.Join(selecting, ", --"))
 	}
 	return j, nil
 }
@@ -145,6 +162,14 @@ func runJob(o ui.Options, j *job, f project.Filter, stdout, stderr io.Writer) er
 	if err := gh.Auth(); err != nil {
 		return err
 	}
+	if j.account != nil {
+		lines, t, err := j.account(o, f, o.DryRun)
+		for _, line := range lines {
+			fmt.Fprintln(stdout, line)
+		}
+		fmt.Fprintln(stdout, j.totalLine(t, o.DryRun))
+		return err
+	}
 	names, note, err := reportNames(o, "run of "+j.flag)
 	if err != nil {
 		return err
@@ -166,11 +191,7 @@ func runJob(o ui.Options, j *job, f project.Filter, stdout, stderr io.Writer) er
 			failed++
 		}
 	}
-	if j.total != nil {
-		fmt.Fprintln(stdout, j.total(total, o.DryRun))
-	} else {
-		fmt.Fprintln(stdout, project.TotalLine(j.verb, j.noun, total.Count, o.DryRun))
-	}
+	fmt.Fprintln(stdout, j.totalLine(total, o.DryRun))
 	if note != "" {
 		fmt.Fprintf(stderr, "gh-sweep: %s\n", note)
 	}
@@ -178,4 +199,12 @@ func runJob(o ui.Options, j *job, f project.Filter, stdout, stderr io.Writer) er
 		return fmt.Errorf("%s failed in %d of %d repositories", j.flag, failed, len(repositories))
 	}
 	return nil
+}
+
+// totalLine is the last line of the job.
+func (j *job) totalLine(t project.Total, dryRun bool) string {
+	if j.total != nil {
+		return j.total(t, dryRun)
+	}
+	return project.TotalLine(j.verb, j.noun, t.Count, dryRun)
 }
