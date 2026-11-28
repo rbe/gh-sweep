@@ -65,7 +65,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CI_BEFORE: ${{ github.event.before }}
         run: make ci-scope
+      # DEPS_TOKEN reads private git dependencies (r-project-setup). An
+      # absent repository secret is empty and changes nothing.
       - if: steps.scope.outputs.board-only != 'true'
+        env:
+          DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}
         run: make setup
       - uses: actions/upload-artifact@v7
         if: always()
@@ -84,6 +88,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: make build
+        env:
+          DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}
       - uses: actions/upload-artifact@v7
         with:
           name: image
@@ -151,6 +157,7 @@ jobs:
           REGISTRY_TOKEN: ${{ github.token }}
       - run: make publish-container
         env:
+          DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
       - run: make cleanup-container-versions
         env:
