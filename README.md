@@ -70,7 +70,15 @@ other/app: artifacts 3, caches 0, size 12.0 MB
 total: artifacts 45, caches 7, size 3.4 GB
 ```
 
-A repository with no artifact and no cache gets no line. When no repository has an entry, the tool prints only the total line, with zeros. The total line comes last. `--org`, `--user`, `--artifacts-only`, and `--caches-only` work as they do for the checklist. `--summary` together with `--dry-run` behaves as `--summary`. An error from `gh` is printed to standard error, the tool prints no summary, and the exit status is not zero.
+A repository with no artifact and no cache gets no line. When no repository has an entry, the tool prints only the total line, with zeros. The total line comes last. `--org`, `--user`, `--artifacts-only`, and `--caches-only` work as they do for the checklist. `--summary` together with `--dry-run` behaves as `--summary`. If `gh` gives an error for one repository, the tool skips that repository and finishes the summary. The skipped repository gets a line before the total line, with the first line of the error. The total counts only the repositories the tool read. Standard error then says how many repositories were skipped, and the exit status is 1:
+
+```text
+rbe/erechnung: artifacts 42, caches 7, size 3.4 GB
+other/app: skipped, HTTP 403: Resource not accessible by personal access token
+total: artifacts 42, caches 7, size 3.4 GB
+```
+
+An error before the first repository, for example when `gh` is not logged in, stops the tool before it prints a summary.
 
 ### Storage usage
 
@@ -103,7 +111,7 @@ rbe/erechnung: coverage #2101113, size 40.0 MB, created 2026-08-01, expires 2026
 total: artifacts 2, size 552 MB, expired 1, expired size 40.0 MB
 ```
 
-Use only one of `--summary`, `--usage`, and `--artifact-list`. `--artifact-list` together with `--caches-only` is an error. Errors from `gh` and the other flags behave as for `--summary`.
+Use only one of `--summary`, `--usage`, and `--artifact-list`. `--artifact-list` together with `--caches-only` is an error. Errors from `gh`, the skipped lines, and the other flags behave as for `--summary`.
 
 ### Repository settings
 

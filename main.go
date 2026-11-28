@@ -49,7 +49,9 @@ type report struct {
 }
 
 // printReport loads the inventories and writes the lines of the report to
-// stdout. It writes nothing to stdout when an inventory cannot be loaded.
+// stdout. A repository that cannot be loaded gets a skipped line before the
+// total line, the other repositories still get their lines, and the result
+// is an error that counts the skipped repositories.
 func printReport(o ui.Options, r *report, stdout, stderr io.Writer) error {
 	if err := gh.Auth(); err != nil {
 		return err
@@ -62,17 +64,30 @@ func printReport(o ui.Options, r *report, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	inventories, err := loadInventories(repositories, o.WantArt, o.WantCache)
-	if err != nil {
-		return err
-	}
-	for _, line := range r.lines(inventories) {
+	inventories, skipped := loadInventories(repositories, o.WantArt, o.WantCache)
+	for _, line := range withSkipped(r.lines(inventories), skipped) {
 		fmt.Fprintln(stdout, line)
 	}
 	if note != "" {
 		fmt.Fprintf(stderr, "gh-sweep: %s\n", note)
 	}
+	if len(skipped) > 0 {
+		return fmt.Errorf("the %s skipped %d of %d repositories", r.name, len(skipped), len(repositories))
+	}
 	return nil
+}
+
+// withSkipped puts one line for each skipped repository before the last
+// line of a report, which is its total line.
+func withSkipped(lines []string, skipped []project.Skipped) []string {
+	if len(skipped) == 0 || len(lines) == 0 {
+		return lines
+	}
+	out := append([]string{}, lines[:len(lines)-1]...)
+	for _, s := range skipped {
+		out = append(out, s.Line())
+	}
+	return append(out, lines[len(lines)-1])
 }
 
 // reportNames names the repositories a report covers: the repository
@@ -115,21 +130,23 @@ func parseRepositories(names []string) ([]project.Project, error) {
 }
 
 // loadInventories reads the artifacts and the caches of each repository
-// with gh. An error from gh, for the whole inventory or for a part of it,
-// stops the load, because the numbers would be wrong.
-func loadInventories(repositories []project.Project, wantArt, wantCache bool) ([]project.Project, error) {
+// with gh. A repository with an error from gh, for the whole inventory or
+// for a part of it, is skipped, because its numbers would be wrong.
+func loadInventories(repositories []project.Project, wantArt, wantCache bool) ([]project.Project, []project.Skipped) {
 	inventories := make([]project.Project, 0, len(repositories))
+	var skipped []project.Skipped
 	for _, base := range repositories {
 		p, err := gh.Load(base, wantArt, wantCache)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", base.NWO, err)
+		if err == nil && p.Err != "" {
+			err = fmt.Errorf("%s", p.Err)
 		}
-		if p.Err != "" {
-			return nil, fmt.Errorf("%s: %s", base.NWO, p.Err)
+		if err != nil {
+			skipped = append(skipped, project.Skipped{NWO: base.NWO, Reason: err.Error()})
+			continue
 		}
 		inventories = append(inventories, p)
 	}
-	return inventories, nil
+	return inventories, skipped
 }
 
 // cli is one parsed command line: the options of the checklist, the
