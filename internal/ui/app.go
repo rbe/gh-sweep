@@ -25,6 +25,7 @@ const (
 	scrHelp
 	scrPrompt
 	scrReport
+	scrAction
 )
 
 const (
@@ -99,6 +100,7 @@ type model struct {
 	helpFrom   screen
 
 	report reportState
+	act    actionState
 
 	jobs        []delJob
 	jobi        int
@@ -324,8 +326,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.deleteCmd()
+	case actionsListedMsg:
+		return m.onActionsListed(msg)
+	case actionAppliedMsg:
+		return m.applyNext(msg.err)
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
+			if m.screen == scrAction && m.act.stage == stageApplying {
+				m.act.stopped = true
+				m.status = "Stopping after the current request…"
+				return m, nil
+			}
 			if m.screen == scrWorking {
 				m.stop = true
 				m.status = "Stopping after the current request…"
@@ -354,6 +365,8 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case scrReport:
 		return m.onReport(s)
+	case scrAction:
+		return m.onAction(s)
 	case scrResult:
 		if s == "q" {
 			return m, tea.Quit
@@ -469,6 +482,8 @@ func (m model) onProjects(s string) (tea.Model, tea.Cmd) {
 		}
 	case "u":
 		m.openUsage()
+	case "m":
+		return m.openActions()
 	case "?":
 		m.helpFrom = scrProjects
 		m.screen = scrHelp
@@ -1233,6 +1248,8 @@ func (m model) View() string {
 		return m.viewPrompt()
 	case scrReport:
 		return m.viewReport()
+	case scrAction:
+		return m.viewAction()
 	default:
 		return m.viewProjects()
 	}
@@ -1284,7 +1301,7 @@ func (m model) viewProjects() string {
 	}
 	b.WriteString(dimStyle.Render(format.Fit(sum, m.width-1)))
 	b.WriteByte('\n')
-	keys := "space mark    enter pick    a all    n none    d wipe    s scan    u usage    + add    / find    q quit"
+	keys := "space mark    enter pick    a all    n none    d wipe    s scan    u usage    m actions    + add    / find    q quit"
 	if m.projFilterEdit {
 		keys = "type to filter    enter done    esc clear"
 	}
@@ -1643,6 +1660,7 @@ j/k        move        h/l fold        e/c fold all
 a/n        select or clear what the filter shows
 x          select expired artifacts (they still use quota)
 u          storage usage of the scanned projects
+m          action menu: workflow runs and releases
 i          details of each artifact in the open project
 o          select artifacts older than N days
 t          keep the newest N of each name, select the rest

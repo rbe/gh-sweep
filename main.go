@@ -9,6 +9,7 @@ import (
 
 	"github.com/rbe/gh-sweep/internal/gh"
 	"github.com/rbe/gh-sweep/internal/project"
+	"github.com/rbe/gh-sweep/internal/sweep"
 	"github.com/rbe/gh-sweep/internal/ui"
 )
 
@@ -157,7 +158,7 @@ type cli struct {
 	options  ui.Options
 	report   *report
 	settings project.SettingsChange
-	job      *job
+	job      *sweep.Action
 	filter   project.Filter
 }
 
@@ -193,7 +194,7 @@ func parseCLI(args []string) (cli, error) {
 		}
 		return fmt.Errorf("give allow or deny")
 	})
-	jobs := registerJobs(fs, allJobs())
+	jobs := registerJobs(fs, sweep.All())
 	var repos []string
 	fs.Func("repo", "repository owner/name (repeatable)", func(s string) error {
 		repos = append(repos, s)
@@ -226,12 +227,12 @@ func parseCLI(args []string) (cli, error) {
 	if err := checkSettingsTarget(settings, chosen, named); err != nil {
 		return cli{}, err
 	}
-	j, err := jobs.choose()
+	j, given, err := jobs.choose()
 	if err != nil {
 		return cli{}, err
 	}
-	o := ui.Options{Repos: repos, Org: *org, User: *user, Mine: *mine}
-	if err := checkJob(j, jobs.filter, o, chosen, settings, named); err != nil {
+	s := sweep.Scope{Repos: repos, Org: *org, User: *user, Mine: *mine}
+	if err := checkJob(j, given, jobs.filter, s, chosen, settings); err != nil {
 		return cli{}, err
 	}
 	wantCache := !*artOnly
@@ -256,36 +257,16 @@ func parseCLI(args []string) (cli, error) {
 	}, nil
 }
 
-// allJobs are the write flags that run in each named repository.
-func allJobs() []job {
-	jobs := append(append([]job{}, runJobs...), cacheJobs...)
-	jobs = append(jobs, accountJobs...)
-	jobs = append(jobs, billingJob, branchJob)
-	jobs = append(jobs, deploymentJobs...)
-	return append(jobs, staleJobs...)
-}
-
 // checkJob refuses a write flag together with a report flag or a settings
-// flag, a write flag with no named target, and a status that GitHub does
-// not accept.
-func checkJob(j *job, f project.Filter, o ui.Options, chosen *report, c project.SettingsChange, named bool) error {
-	if j == nil {
+// flag, then checks the filters and the target of the action.
+func checkJob(a *sweep.Action, given []string, f project.Filter, s sweep.Scope, chosen *report, c project.SettingsChange) error {
+	if a == nil {
 		return nil
 	}
 	if chosen != nil || !c.Empty() {
-		return fmt.Errorf("%s does not combine with a report flag or a settings flag", j.flag)
+		return fmt.Errorf("%s does not combine with a report flag or a settings flag", a.Flag)
 	}
-	switch {
-	case j.target != nil:
-		if err := j.target(o, f); err != nil {
-			return err
-		}
-	case !j.readOnly:
-		if err := checkWriteTarget(j.flag, named); err != nil {
-			return err
-		}
-	}
-	return project.CheckRunStatus(f.Status)
+	return a.CheckFilters(given, f, s)
 }
 
 // checkSettingsTarget refuses a settings change together with a report, and

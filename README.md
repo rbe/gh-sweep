@@ -323,9 +323,29 @@ The disk usage is the size that GitHub reports for the Git data. It does not hol
 | d | Delete everything in the marked repositories, after a confirmation. |
 | s | Scan sizes without deleting. |
 | u | Show the storage usage of the scanned projects, largest first. |
+| m | Open the action menu for the marked repositories, or for the repository under the cursor. See [Actions](#actions). |
 | + | Add `owner/repo`. |
 | / | Filter the list. Type to narrow it. Esc clears it. |
 | q | Quit. |
+
+### Actions
+
+`m` on the project list opens the action menu. The menu runs the same actions as the write flags, in the marked repositories, or in the repository under the cursor when none is marked. The menu has these actions:
+
+| Action | Write flag |
+| --- | --- |
+| Delete workflow runs and their logs | `--delete-runs` |
+| Delete the logs of workflow runs | `--delete-run-logs` |
+| Delete releases and keep their tags | `--delete-releases` |
+| Delete the files of releases | `--delete-release-assets` |
+
+1. Choose an action with `j`, `k`, and `enter`.
+2. Fill the filter form. The form has one field for each filter flag that the action reads, such as `older-than`. `tab` goes to the next field. An empty field is not used. The form refuses the same filters as the command line, for example a delete of workflow runs with no filter.
+3. Press `enter`. The preview lists each entry that the filters select, with its line of `--dry-run`. Each entry is checked. `space` toggles an entry, `a` checks all, `n` clears all.
+4. Press `d`. `y` confirms. More than 20 entries, 1 GB or more, or more than one repository asks you to type the verb of the action, such as `delete`.
+5. The result lists one line for each entry done, the total line, and one line for each entry that failed. `ctrl-c` stops after the current request.
+
+With `--dry-run`, the action sends no write request, and the result says what would change.
 
 ### Inside a repository
 
