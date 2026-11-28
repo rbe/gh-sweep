@@ -24,11 +24,13 @@ type Filter struct {
 type Total struct {
 	Count int
 	Bytes int64
+	Gross float64
+	Net   float64
 }
 
 // Add gives the sum of two totals.
 func (t Total) Add(o Total) Total {
-	return Total{Count: t.Count + o.Count, Bytes: t.Bytes + o.Bytes}
+	return Total{Count: t.Count + o.Count, Bytes: t.Bytes + o.Bytes, Gross: t.Gross + o.Gross, Net: t.Net + o.Net}
 }
 
 // OlderThanCutoff is true when t is more than OlderThan days before now.
