@@ -1,6 +1,6 @@
 // id: ADR-0014
 
-package main
+package cli
 
 import (
 	"bytes"
@@ -33,7 +33,7 @@ func TestStaleListPrintsTheRepositoriesOldestPushFirst(t *testing.T) {
 	log := mockStale(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--stale-list", "--older-than", "365"}, &stdout, &stderr)
+	status := Run([]string{"--stale-list", "--older-than", "365"}, &stdout, &stderr)
 	want := "acme/gone: pushed 2023-01-01 (1427 days ago), disk 1.0 MB, archived yes\n" +
 		"acme/old: pushed 2024-11-28 (730 days ago), disk 10.0 MB, archived no\n" +
 		"total: repositories 2, disk 11.0 MB\n"
@@ -49,7 +49,7 @@ func TestArchiveArchivesOnlyTheNamedRepositoriesAndSkipsAnArchivedOne(t *testing
 	log := mockStale(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--archive", "acme/old", "acme/gone"}, &stdout, &stderr)
+	status := Run([]string{"--archive", "acme/old", "acme/gone"}, &stdout, &stderr)
 	want := "acme/old: pushed 2024-11-28, disk 10.0 MB, archived\n" +
 		"acme/gone: pushed 2023-01-01, disk 1.0 MB, already archived\n" +
 		"total: archived 1 repositories\n"
@@ -66,7 +66,7 @@ func TestArchiveWithOlderThanRefusesARecentRepositoryAndDryRunWritesNothing(t *t
 	log := mockStale(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--dry-run", "--archive", "--older-than", "365", "acme/widgets", "acme/old"}, &stdout, &stderr)
+	status := Run([]string{"--dry-run", "--archive", "--older-than", "365", "acme/widgets", "acme/old"}, &stdout, &stderr)
 	wantErr := "gh-sweep: acme/widgets: pushed 2026-11-27, less than 365 days ago. Not archived\n" +
 		"gh-sweep: --archive failed in 1 of 2 repositories\n"
 	if status != 1 || stdout.String() != "acme/old: pushed 2024-11-28, disk 10.0 MB, would archive\ntotal: would archive 1 repositories\n" || stderr.String() != wantErr {
@@ -82,7 +82,7 @@ func TestArchiveRefusesEveryTargetButNamedRepositories(t *testing.T) {
 	want := "gh-sweep: --archive archives only the repositories you name. Name them, and do not pass --mine, --org, or --user\n"
 	for _, args := range [][]string{{"--archive"}, {"--archive", "--mine"}, {"--archive", "--org", "acme"}} {
 		var stdout, stderr bytes.Buffer
-		if status := run(args, &stdout, &stderr); status != 2 || stderr.String() != want {
+		if status := Run(args, &stdout, &stderr); status != 2 || stderr.String() != want {
 			t.Fatalf("%v: status %d\nstdout\n%sstderr\n%s", args, status, stdout.String(), stderr.String())
 		}
 	}

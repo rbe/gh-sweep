@@ -120,13 +120,13 @@ include .claude/skills/r-go/go.mk
 
 .PHONY: install auth token run clean
 
-SOURCES := $(wildcard *.go internal/*/*.go)
+SOURCES := $(wildcard cmd/*/*.go internal/*/*.go)
 
 bin/gh-sweep: $(SOURCES) go.mod go.sum
 	mkdir -p bin
 	tmp=$$(mktemp); \
 	if $(call go-run,-e GOOS=$(HOST_GOOS) -e GOARCH=$(HOST_GOARCH)) \
-		sh -c 'go build -trimpath -ldflags="-s -w" -o /tmp/gh-sweep . && cat /tmp/gh-sweep' \
+		sh -c 'go build -trimpath -ldflags="-s -w" -o /tmp/gh-sweep ./cmd/gh-sweep && cat /tmp/gh-sweep' \
 		> "$$tmp"; then \
 		mv "$$tmp" $@; \
 		chmod 755 $@; \

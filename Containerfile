@@ -11,9 +11,9 @@ FROM docker.io/library/golang:1.22-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-COPY *.go ./
+COPY cmd ./cmd
 COPY internal ./internal
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/gh-sweep .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/gh-sweep ./cmd/gh-sweep
 
 FROM docker.io/library/debian:bookworm-slim
 

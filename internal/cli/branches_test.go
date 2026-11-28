@@ -1,6 +1,6 @@
 // id: ADR-0012
 
-package main
+package cli
 
 import (
 	"bytes"
@@ -37,7 +37,7 @@ func TestDeleteMergedBranchesDeletesOnlyBranchesWithNoNewCommitAndNoOpenPullRequ
 	log := mockBranches(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-merged-branches", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--delete-merged-branches", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: branch done, pull request #1 merged, deleted\n" +
 		"acme/widgets: branch dropped, pull request #2 closed, deleted\n" +
 		"total: deleted 2 branches\n"
@@ -59,7 +59,7 @@ func TestDeleteMergedBranchesWithDryRunSendsNoDeleteRequest(t *testing.T) {
 	log := mockBranches(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--dry-run", "--delete-merged-branches", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--dry-run", "--delete-merged-branches", "acme/widgets"}, &stdout, &stderr)
 	if status != 0 || !strings.HasSuffix(stdout.String(), "#2 closed, would delete\ntotal: would delete 2 branches\n") {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}
@@ -78,7 +78,7 @@ func TestDeleteMergedBranchesRefusesNoTargetAndAFilter(t *testing.T) {
 		{[]string{"--delete-merged-branches", "--older-than", "3", "acme/widgets"}, "gh-sweep: --delete-merged-branches does not read --older-than\n"},
 	} {
 		var stdout, stderr bytes.Buffer
-		if status := run(c.args, &stdout, &stderr); status != 2 || stderr.String() != c.want {
+		if status := Run(c.args, &stdout, &stderr); status != 2 || stderr.String() != c.want {
 			t.Fatalf("%v: status %d\nstdout\n%sstderr\n%s", c.args, status, stdout.String(), stderr.String())
 		}
 	}

@@ -1,6 +1,6 @@
 // id: ADR-0006
 
-package main
+package cli
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ func TestRetentionDaysSetsTheRetentionOfEachRepositoryAndPrintsTheOldValue(t *te
 	log := mockInventory(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--retention-days", "30", "acme/widgets", "other/lib"}, &stdout, &stderr)
+	status := Run([]string{"--retention-days", "30", "acme/widgets", "other/lib"}, &stdout, &stderr)
 	want := "acme/widgets: retention-days 90, set 30 (maximum 90)\n" +
 		"other/lib: retention-days 90, set 30 (maximum 90)\n"
 	if status != 0 || stdout.String() != want || stderr.Len() != 0 {
@@ -35,7 +35,7 @@ func TestActionsPRApprovalKeepsTheDefaultPermissionAndSendsNoRequestWhenUnchange
 	t.Setenv("GH_MOCK_WORKFLOW", "write false")
 
 	var stdout, stderr bytes.Buffer
-	if status := run([]string{"--actions-pr-approval", "allow", "acme/widgets"}, &stdout, &stderr); status != 0 {
+	if status := Run([]string{"--actions-pr-approval", "allow", "acme/widgets"}, &stdout, &stderr); status != 0 {
 		t.Fatalf("status %d\n%s", status, stderr.String())
 	}
 	if stdout.String() != "acme/widgets: actions-pr-approval deny, set allow\n" {
@@ -46,7 +46,7 @@ func TestActionsPRApprovalKeepsTheDefaultPermissionAndSendsNoRequestWhenUnchange
 	}
 
 	stdout.Reset()
-	if status := run([]string{"--actions-pr-approval", "deny", "other/lib"}, &stdout, &stderr); status != 0 {
+	if status := Run([]string{"--actions-pr-approval", "deny", "other/lib"}, &stdout, &stderr); status != 0 {
 		t.Fatalf("status %d\n%s", status, stderr.String())
 	}
 	if stdout.String() != "other/lib: actions-pr-approval deny, unchanged\n" {
@@ -61,7 +61,7 @@ func TestSettingsWithDryRunReadAndSendNoChange(t *testing.T) {
 	log := mockInventory(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--dry-run", "--retention-days", "7", "--actions-pr-approval", "allow", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--dry-run", "--retention-days", "7", "--actions-pr-approval", "allow", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: retention-days 90, would set 7 (maximum 90)\n" +
 		"acme/widgets: actions-pr-approval deny, would set allow\n"
 	if status != 0 || stdout.String() != want || stderr.Len() != 0 {
@@ -76,7 +76,7 @@ func TestRetentionDaysAboveTheMaximumChangesNothingInThatRepository(t *testing.T
 	log := mockInventory(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--retention-days", "400", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--retention-days", "400", "acme/widgets"}, &stdout, &stderr)
 	want := "gh-sweep: acme/widgets: retention-days 400 is above the maximum 90 of this repository\n" +
 		"gh-sweep: the settings of 1 of 1 repositories did not change\n"
 	if status != 1 || stdout.Len() != 0 || stderr.String() != want {
@@ -92,7 +92,7 @@ func TestSettingsErrorInOneRepositoryStillChangesTheNextAndFails(t *testing.T) {
 	t.Setenv("GH_MOCK_SETTINGS_FAIL", "acme/widgets")
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--retention-days", "30", "acme/widgets", "other/lib"}, &stdout, &stderr)
+	status := Run([]string{"--retention-days", "30", "acme/widgets", "other/lib"}, &stdout, &stderr)
 	wantErr := "gh-sweep: acme/widgets: HTTP 404: Not Found\n" +
 		"gh-sweep: the settings of 1 of 2 repositories did not change\n"
 	if status != 1 || stdout.String() != "other/lib: retention-days 90, set 30 (maximum 90)\n" || stderr.String() != wantErr {
@@ -108,7 +108,7 @@ func TestSettingsWithNoArgumentCoverTheLoggedInUserOnlyWithMine(t *testing.T) {
 	t.Setenv("GH_MOCK_REPOS", "acme/widgets\nother/lib")
 
 	var stdout, stderr bytes.Buffer
-	if status := run([]string{"--retention-days", "30"}, &stdout, &stderr); status != 2 || stdout.Len() != 0 ||
+	if status := Run([]string{"--retention-days", "30"}, &stdout, &stderr); status != 2 || stdout.Len() != 0 ||
 		stderr.String() != "gh-sweep: to change settings, name the repositories, or pass --mine, --org, or --user\n" {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}
@@ -117,7 +117,7 @@ func TestSettingsWithNoArgumentCoverTheLoggedInUserOnlyWithMine(t *testing.T) {
 	}
 
 	stderr.Reset()
-	if status := run([]string{"--mine", "--retention-days", "30"}, &stdout, &stderr); status != 0 {
+	if status := Run([]string{"--mine", "--retention-days", "30"}, &stdout, &stderr); status != 0 {
 		t.Fatalf("status %d\n%s", status, stderr.String())
 	}
 	calls := readLog(t, log)
@@ -138,7 +138,7 @@ func TestSettingsFlagsRefuseABadValueAndAReportFlag(t *testing.T) {
 		{"--usage", "--actions-pr-approval", "deny", "acme/widgets"},
 	} {
 		var stdout, stderr bytes.Buffer
-		if status := run(args, &stdout, &stderr); status != 2 || stdout.Len() != 0 || !strings.HasPrefix(stderr.String(), "gh-sweep: ") {
+		if status := Run(args, &stdout, &stderr); status != 2 || stdout.Len() != 0 || !strings.HasPrefix(stderr.String(), "gh-sweep: ") {
 			t.Fatalf("%v: status %d\nstdout\n%sstderr\n%s", args, status, stdout.String(), stderr.String())
 		}
 	}

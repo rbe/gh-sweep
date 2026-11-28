@@ -1,6 +1,6 @@
 // id: ADR-0008
 
-package main
+package cli
 
 import (
 	"bytes"
@@ -29,7 +29,7 @@ func TestDeleteRunsDeletesOnlyCompletedRunsOlderThanTheAge(t *testing.T) {
 	log := mockRuns(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-runs", "--older-than", "30", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--delete-runs", "--older-than", "30", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: run 501 \"CI\", branch main, conclusion failure, created 2026-09-01, deleted\n" +
 		"total: deleted 1 workflow runs\n"
 	if status != 0 || stdout.String() != want || stderr.Len() != 0 {
@@ -46,7 +46,7 @@ func TestDeleteRunLogsSendsTheBranchAndStatusAndKeepsTheRun(t *testing.T) {
 	log := mockRuns(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-run-logs", "--branch", "main", "--status", "failure", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--delete-run-logs", "--branch", "main", "--status", "failure", "acme/widgets"}, &stdout, &stderr)
 	if status != 0 || !strings.Contains(stdout.String(), "run 501 \"CI\", branch main, conclusion failure, created 2026-09-01, deleted logs\n") {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}
@@ -68,7 +68,7 @@ func TestDeleteRunsWithDryRunSendsNoDeleteRequest(t *testing.T) {
 	log := mockRuns(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--dry-run", "--delete-runs", "--older-than", "1", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--dry-run", "--delete-runs", "--older-than", "1", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: run 501 \"CI\", branch main, conclusion failure, created 2026-09-01, would delete\n" +
 		"acme/widgets: run 502 \"CI\", branch main, conclusion success, created 2026-11-27, would delete\n" +
 		"total: would delete 2 workflow runs\n"
@@ -85,7 +85,7 @@ func TestDeleteRunsErrorInOneRepositoryStillRunsTheNextAndFails(t *testing.T) {
 	mockAPI(t, "repos/other/lib/actions/runs.fail", "HTTP 403: Resource not accessible by personal access token\n")
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-runs", "--older-than", "30", "other/lib", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--delete-runs", "--older-than", "30", "other/lib", "acme/widgets"}, &stdout, &stderr)
 	wantErr := "gh-sweep: other/lib: HTTP 403: Resource not accessible by personal access token\n" +
 		"gh-sweep: --delete-runs failed in 1 of 2 repositories\n"
 	if status != 1 || stderr.String() != wantErr || !strings.HasSuffix(stdout.String(), "total: deleted 1 workflow runs\n") {
@@ -111,7 +111,7 @@ func TestDeleteRunsRefusesNoTargetNoFilterAndABadFilter(t *testing.T) {
 		{[]string{"--delete-runs", "--older-than", "0", "acme/widgets"}, ""},
 	} {
 		var stdout, stderr bytes.Buffer
-		status := run(c.args, &stdout, &stderr)
+		status := Run(c.args, &stdout, &stderr)
 		if status != 2 || stdout.Len() != 0 || (c.want != "" && stderr.String() != c.want) {
 			t.Fatalf("%v: status %d\nstdout\n%sstderr\n%s", c.args, status, stdout.String(), stderr.String())
 		}
