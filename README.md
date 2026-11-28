@@ -330,18 +330,32 @@ The disk usage is the size that GitHub reports for the Git data. It does not hol
 
 ### Actions
 
-`m` on the project list opens the action menu. The menu runs the same actions as the write flags, in the marked repositories, or in the repository under the cursor when none is marked. The menu has these actions:
+`m` on the project list opens the action menu. The menu runs the same actions as the flags of the command line, in the marked repositories, or in the repository under the cursor when none is marked. The menu has these actions:
 
-| Action | Write flag |
+| Action | Flag |
 | --- | --- |
 | Delete workflow runs and their logs | `--delete-runs` |
 | Delete the logs of workflow runs | `--delete-run-logs` |
+| Delete caches | `--delete-caches` |
+| Show the cache usage and the cache limits | `--cache-usage` |
 | Delete releases and keep their tags | `--delete-releases` |
 | Delete the files of releases | `--delete-release-assets` |
+| Delete versions of a package | `--delete-package-versions` |
+| Delete your stopped codespaces | `--delete-codespaces` |
+| Show the billed Actions usage of this month | `--billing` |
+| Delete branches of merged or closed pull requests | `--delete-merged-branches` |
+| Delete old deployments | `--delete-deployments` |
+| Delete unused environments | `--delete-unused-environments` |
+| List repositories by their last push | `--stale-list` |
+| Archive repositories | `--archive` |
+| Set the artifact and log retention | `--retention-days` |
+| Allow or deny pull requests from GitHub Actions | `--actions-pr-approval` |
+
+Package versions and billing belong to an account, not to a repository. For package versions, the menu uses `--org` or `--user` of the command line, else the logged-in user. For billing, the menu uses `--org` or `--user`, else the logged-in user. Codespaces, the stale list, and archive use the marked repositories.
 
 1. Choose an action with `j`, `k`, and `enter`.
-2. Fill the filter form. The form has one field for each filter flag that the action reads, such as `older-than`. `tab` goes to the next field. An empty field is not used. The form refuses the same filters as the command line, for example a delete of workflow runs with no filter.
-3. Press `enter`. The preview lists each entry that the filters select, with its line of `--dry-run`. Each entry is checked. `space` toggles an entry, `a` checks all, `n` clears all.
+2. Fill the form. The form has one field for each filter flag that the action reads, such as `older-than`. A settings action has one field for its value. `tab` goes to the next field. An empty field is not used. The form refuses the same filters as the command line, for example a delete of workflow runs with no filter.
+3. Press `enter`. A read-only action, such as `--billing`, shows its report at once. For a write, the preview lists each entry that the filters select, with its line of `--dry-run`. Each entry with a write is checked. A line with no write, such as a setting that already has the value, has no box. `space` toggles an entry, `a` checks all, `n` clears all.
 4. Press `d`. `y` confirms. More than 20 entries, 1 GB or more, or more than one repository asks you to type the verb of the action, such as `delete`.
 5. The result lists one line for each entry done, the total line, and one line for each entry that failed. `ctrl-c` stops after the current request.
 

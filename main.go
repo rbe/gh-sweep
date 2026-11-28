@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 
 	"github.com/rbe/gh-sweep/internal/gh"
 	"github.com/rbe/gh-sweep/internal/project"
@@ -177,22 +176,11 @@ func parseCLI(args []string) (cli, error) {
 	artifactList := fs.Bool("artifact-list", false, "print one line for each artifact with size, dates, and status, then exit")
 	filter := fs.String("filter", "", "initial item filter")
 	var settings project.SettingsChange
-	fs.Func("retention-days", "set the artifact and log retention to this number of days, then exit", func(s string) error {
-		days, err := strconv.Atoi(s)
-		if err != nil || days < 1 {
-			return fmt.Errorf("give a number of days of 1 or more")
-		}
-		settings.RetentionDays = days
-		return nil
+	fs.Func("retention-days", "set the artifact and log retention to this number of days, then exit", func(v string) error {
+		return sweep.SetSetting(&settings, "retention-days", v)
 	})
-	fs.Func("actions-pr-approval", "allow or deny that GitHub Actions creates and approves pull requests, then exit", func(s string) error {
-		switch s {
-		case "allow", "deny":
-			allow := s == "allow"
-			settings.PRApproval = &allow
-			return nil
-		}
-		return fmt.Errorf("give allow or deny")
+	fs.Func("actions-pr-approval", "allow or deny that GitHub Actions creates and approves pull requests, then exit", func(v string) error {
+		return sweep.SetSetting(&settings, "actions-pr-approval", v)
 	})
 	jobs := registerJobs(fs, sweep.All())
 	var repos []string
@@ -323,57 +311,12 @@ func applySettings(o ui.Options, c project.SettingsChange, stdout, stderr io.Wri
 // changeSettings changes the settings of one repository. It stops at the
 // first error and gives the lines of the settings done before it.
 func changeSettings(p project.Project, c project.SettingsChange, dryRun bool) ([]string, error) {
-	var lines []string
-	if c.RetentionDays > 0 {
-		line, err := changeRetention(p, c.RetentionDays, dryRun)
-		if err != nil {
-			return lines, err
-		}
-		lines = append(lines, line)
-	}
-	if c.PRApproval != nil {
-		line, err := changePRApproval(p, *c.PRApproval, dryRun)
-		if err != nil {
-			return lines, err
-		}
-		lines = append(lines, line)
-	}
-	return lines, nil
-}
-
-// changeRetention reads the retention, checks the maximum, and writes the
-// new value when it differs and dryRun is false.
-func changeRetention(p project.Project, days int, dryRun bool) (string, error) {
-	before, err := gh.GetRetention(p)
+	entries, listErr := sweep.SettingEntries(p, c)
+	lines, _, err := sweep.Apply(entries, dryRun)
 	if err != nil {
-		return "", err
+		return lines, err
 	}
-	if err := project.CheckRetentionDays(days, before); err != nil {
-		return "", err
-	}
-	if !dryRun && before.Days != days {
-		if err := gh.SetRetention(p, days); err != nil {
-			return "", err
-		}
-	}
-	return project.RetentionLine(p.NWO, before, days, dryRun), nil
-}
-
-// changePRApproval reads the workflow permissions and writes the new pull
-// request setting when it differs and dryRun is false.
-func changePRApproval(p project.Project, allow, dryRun bool) (string, error) {
-	before, err := gh.GetWorkflowPermissions(p)
-	if err != nil {
-		return "", err
-	}
-	if !dryRun && before.CanApprovePRs != allow {
-		after := before
-		after.CanApprovePRs = allow
-		if err := gh.SetWorkflowPermissions(p, after); err != nil {
-			return "", err
-		}
-	}
-	return project.PRApprovalLine(p.NWO, before.CanApprovePRs, allow, dryRun), nil
+	return lines, listErr
 }
 
 // chooseReport gives the report of the one report flag that is set, or nil.

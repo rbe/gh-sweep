@@ -173,7 +173,7 @@ func TestTheActionMenuListsAFailedWriteAndGoesOn(t *testing.T) {
 func TestTheActionFormRefusesTheFilterValuesThatTheCommandLineRefuses(t *testing.T) {
 	writes := fakeRuns(t, false)
 	m := actionModel(Options{}, "acme/widgets")
-	m = press(t, m, "m", "j", "j", "enter", "tab", "-", "1", "enter")
+	m = press(t, m, "m", "j", "j", "j", "j", "enter", "tab", "-", "1", "enter")
 	if m.act.action.Flag != "--delete-releases" || m.act.stage != stageForm {
 		t.Fatalf("action %s, stage %d", m.act.action.Flag, m.act.stage)
 	}
@@ -182,5 +182,139 @@ func TestTheActionFormRefusesTheFilterValuesThatTheCommandLineRefuses(t *testing
 	}
 	if len(*writes) != 0 {
 		t.Fatalf("writes %v", *writes)
+	}
+}
+
+// choose opens the menu and picks the action of the flag.
+func choose(t *testing.T, m model, flag string) model {
+	t.Helper()
+	m = press(t, m, "m")
+	for m.act.menu[m.act.pick].Flag != flag {
+		if m.act.pick == len(m.act.menu)-1 {
+			t.Fatalf("the menu has no %s", flag)
+		}
+		m = press(t, m, "j")
+	}
+	return press(t, m, "enter")
+}
+
+func line(text string) sweep.Entry {
+	return sweep.Entry{Line: func(bool) string { return text }, Total: project.Total{Count: 1}}
+}
+
+func TestTheActionMenuOffersEveryFlagOfTheCommandLine(t *testing.T) {
+	m := actionModel(Options{}, "acme/widgets")
+	m.height = 12
+	m = press(t, m, "m")
+	want := []string{"--delete-runs", "--delete-run-logs", "--delete-caches", "--cache-usage", "--delete-releases",
+		"--delete-release-assets", "--delete-package-versions", "--delete-codespaces", "--billing",
+		"--delete-merged-branches", "--delete-deployments", "--delete-unused-environments", "--stale-list",
+		"--archive", "--retention-days", "--actions-pr-approval"}
+	var got []string
+	for _, a := range m.act.menu {
+		got = append(got, a.Flag)
+	}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("menu %v", got)
+	}
+	for range want {
+		m = press(t, m, "j")
+	}
+	if view := stripANSI(m.View()); !strings.Contains(view, "--actions-pr-approval") || strings.Contains(view, "--delete-runs") {
+		t.Fatalf("the menu does not scroll to the last action\n%s", view)
+	}
+}
+
+func TestAReadOnlyActionOfTheAccountShowsItsReportAtOnce(t *testing.T) {
+	var scopes []sweep.Scope
+	old := accountEntries
+	accountEntries = func(a sweep.Action, s sweep.Scope, f project.Filter) ([]sweep.Entry, error) {
+		scopes = append(scopes, s)
+		return []sweep.Entry{line("acme: Actions Linux, 120 minutes")}, nil
+	}
+	t.Cleanup(func() { accountEntries = old })
+	m := actionModel(Options{Org: "acme"}, "acme/widgets")
+	m = choose(t, m, "--billing")
+	if len(scopes) != 1 || scopes[0].Org != "acme" || len(scopes[0].Repos) != 0 {
+		t.Fatalf("scopes %+v", scopes)
+	}
+	if m.screen != scrReport || m.report.lines[0] != "acme: Actions Linux, 120 minutes" || m.report.note != "" {
+		t.Fatalf("screen %d, report %+v", m.screen, m.report)
+	}
+}
+
+func TestPackageVersionsInTheMenuBelongToTheLoggedInUserAndNeedAPackage(t *testing.T) {
+	var got []project.Filter
+	var scopes []sweep.Scope
+	old := accountEntries
+	accountEntries = func(a sweep.Action, s sweep.Scope, f project.Filter) ([]sweep.Entry, error) {
+		got, scopes = append(got, f), append(scopes, s)
+		return nil, errors.New("HTTP 404")
+	}
+	t.Cleanup(func() { accountEntries = old })
+	m := actionModel(Options{}, "acme/widgets")
+	m = choose(t, m, "--delete-package-versions")
+	m = press(t, m, "tab", "tab", "y", "e", "s", "enter")
+	if m.status == "" || len(got) != 0 {
+		t.Fatalf("no package gives status %q and %d reads", m.status, len(got))
+	}
+	m = press(t, m, "shift+tab", "shift+tab", "a", "p", "p", "enter")
+	if len(got) != 1 || got[0].Package != "app" || got[0].PackageType != "container" || !got[0].Untagged || !scopes[0].Mine {
+		t.Fatalf("filters %+v, scopes %+v", got, scopes)
+	}
+	if view := stripANSI(m.View()); !strings.Contains(view, "could not read account: HTTP 404") || strings.Contains(view, "in 1 repositories") {
+		t.Fatalf("view\n%s", view)
+	}
+}
+
+func TestTheRetentionSettingChangesOnlyARepositoryWithAnotherValue(t *testing.T) {
+	var changes []project.SettingsChange
+	var writes []string
+	old := settingEntries
+	settingEntries = func(p project.Project, c project.SettingsChange) ([]sweep.Entry, error) {
+		changes = append(changes, c)
+		if p.NWO == "acme/lib" {
+			return []sweep.Entry{{Line: func(bool) string { return "acme/lib: retention stays 30 days" }}}, nil
+		}
+		e := line("acme/widgets: retention 90 days to 30 days")
+		e.Apply = func() error { writes = append(writes, p.NWO); return nil }
+		return []sweep.Entry{e}, nil
+	}
+	t.Cleanup(func() { settingEntries = old })
+	m := actionModel(Options{}, "acme/widgets", "acme/lib")
+	m.projects[0].On, m.projects[1].On = true, true
+	m = choose(t, m, "--retention-days")
+	m = press(t, m, "x", "enter")
+	if m.status != "retention, in days: give a number of days of 1 or more" || len(changes) != 0 {
+		t.Fatalf("status %q, changes %v", m.status, changes)
+	}
+	m = press(t, m, "backspace", "3", "0", "enter")
+	if len(changes) != 2 || changes[0].RetentionDays != 30 {
+		t.Fatalf("changes %+v", changes)
+	}
+	if view := stripANSI(m.View()); !strings.Contains(view, "checked 1 of 2") {
+		t.Fatalf("view\n%s", view)
+	}
+	m = press(t, m, "d", "y")
+	if strings.Join(writes, ",") != "acme/widgets" {
+		t.Fatalf("writes %v", writes)
+	}
+	want := "acme/widgets: retention 90 days to 30 days\nacme/lib: retention stays 30 days\ntotal: changed 1 retention settings"
+	if got := strings.Join(m.report.lines, "\n"); got != want {
+		t.Fatalf("result\n%s", got)
+	}
+}
+
+func TestCtrlCStopsTheActionAfterTheCurrentWrite(t *testing.T) {
+	writes := fakeRuns(t, false)
+	m := actionModel(Options{}, "acme/widgets")
+	m = choose(t, m, "--delete-runs")
+	m = press(t, m, "3", "0", "enter", "d")
+	next, cmd := m.Update(teaKey("y"))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	m = run(next.(model), cmd)
+	if len(*writes) != 1 || m.report.note != "Stopped by ctrl-c. The rows after the last line did not run." {
+		t.Fatalf("writes %v, note %q", *writes, m.report.note)
 	}
 }
