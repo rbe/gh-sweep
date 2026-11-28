@@ -26,11 +26,12 @@ func TestUsagePrintsTheStorageOfEachRepositoryAndSendsNoDeleteRequest(t *testing
 
 func TestArtifactListPrintsEachArtifactAndReadsNoCache(t *testing.T) {
 	log := mockInventory(t)
+	mockAPI(t, "repos/acme/widgets/actions/runs/500", "build\n")
 
 	var stdout, stderr bytes.Buffer
 	status := Run([]string{"--artifact-list", "acme/widgets"}, &stdout, &stderr)
-	want := "acme/widgets: dist #101, size 1.0 MB, created 2026-11-12, expires 2027-02-10, status active\n" +
-		"acme/widgets: dist #100, size 512 KB, created 2026-11-10, expires 2026-11-20, status expired\n" +
+	want := "acme/widgets: dist #101, workflow build, size 1.0 MB, created 2026-11-12, expires 2027-02-10, status active\n" +
+		"acme/widgets: dist #100, workflow -, size 512 KB, created 2026-11-10, expires 2026-11-20, status expired\n" +
 		"total: artifacts 2, size 1.5 MB, expired 1, expired size 512 KB\n"
 	if status != 0 || stdout.String() != want || stderr.Len() != 0 {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())

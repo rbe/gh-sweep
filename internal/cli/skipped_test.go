@@ -42,8 +42,8 @@ func TestArtifactListSkipsARepositoryThatFailsAndListsTheNext(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	status := Run([]string{"--artifact-list", "other/lib", "acme/widgets"}, &stdout, &stderr)
-	want := "acme/widgets: dist #101, size 1.0 MB, created 2026-11-12, expires 2027-02-10, status active\n" +
-		"acme/widgets: dist #100, size 512 KB, created 2026-11-10, expires 2026-11-20, status expired\n" +
+	want := "acme/widgets: dist #101, workflow -, size 1.0 MB, created 2026-11-12, expires 2027-02-10, status active\n" +
+		"acme/widgets: dist #100, workflow -, size 512 KB, created 2026-11-10, expires 2026-11-20, status expired\n" +
 		"other/lib: skipped, HTTP 404: Not Found\n" +
 		"total: artifacts 2, size 1.5 MB, expired 1, expired size 512 KB\n"
 	if status != 1 || stdout.String() != want || stderr.String() != "gh-sweep: the artifact list skipped 1 of 2 repositories\n" {

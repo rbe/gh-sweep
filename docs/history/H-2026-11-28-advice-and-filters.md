@@ -3,7 +3,7 @@ id: H-2026-11-28-advice-and-filters
 title: The advice report, the large-artifact mark, the report filters, and the workflow of an artifact
 status: started
 adrs: [ADR-0018]
-skills: [r-plan, r-security, r-privacy, r-ux-ui-design, r-api-design, r-observability, r-performance]
+skills: [r-plan, r-security, r-privacy, r-ux-ui-design, r-api-design, r-observability, r-performance, r-develop, r-go]
 roadmap: [W-15]
 proposals: []
 ---
@@ -31,7 +31,7 @@ performance: `--artifact-list` makes one gh call for each distinct workflow run 
 
 ## Develop
 
-Not invoked yet.
+`internal/project` gets `limits.go` with `LargeArtifactBytes`, `OldArtifactDays`, `Item.Large`, `Item.Old`, and `WithMinSize`, `advice.go` with `AdviceLines` and `AdviceTable`, and `size.go` with `ParseSize`. `TopUsageLines` and `TopUsageTable` cut the usage to the top repositories. The artifact line and row get the workflow and the large mark. `Item` gets the field `Workflow`. `internal/gh/workflows.go` adds `AddWorkflows`. `internal/cli` reads `--advice`, `--min-size`, and `--top`, and `chooseReport` now takes `reportFlags`. `internal/ui` draws the part `large` of a row with `styleMeta`. `ParseSize` went to `internal/project`, because [ADR-0016](../adr/ADR-0016.md) does not let `internal/cli` import `internal/format`. Three old tests of `--artifact-list` now expect the part `workflow`. The README and the help text name the new flags. r-go applied. `make test-changed TOOLS=host` passed for `./internal/cli`, `./internal/gh`, `./internal/project`, and `./internal/ui`. `r-review` runs the gates.
 
 ## Review
 

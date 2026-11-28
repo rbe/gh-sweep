@@ -1473,6 +1473,9 @@ func (m model) itemLine(cur bool, r project.ViewRow) string {
 			state = "all"
 		}
 		right := fmt.Sprintf("%s · %s · %s · #%s", it.Meta, format.HumanTime(it.When), format.HumanSize(it.Size), it.ID)
+		if it.Large() {
+			right += " · large"
+		}
 		if it.Expired {
 			right += " · expired"
 		} else if !it.Expires.IsZero() {
@@ -1519,14 +1522,37 @@ func (m model) renderRow(level int, cur bool, state, label, right string, sectio
 	} else if cur {
 		lab = nameStyle.Render(lab)
 	}
-	meta := right
-	if strings.HasSuffix(strings.TrimSpace(right), "expired") {
-		base := strings.TrimRight(strings.TrimSuffix(right, "expired"), " ·")
-		meta = dimStyle.Render(base) + " " + warnStyle.Render("expired")
-	} else if !cur {
-		meta = dimStyle.Render(right)
+	return prefix[:len(indent)] + mark + " " + box + " " + lab + "  " + styleMeta(right, cur)
+}
+
+// warnTags are the parts of a row's right side that stand in the warning
+// color: an expired artifact, and a large artifact.
+var warnTags = map[string]bool{"expired": true, "large": true}
+
+// styleMeta draws the parts of the right side of a row. A part in warnTags
+// is in the warning color, and the other parts are faint. With no such part,
+// the row under the cursor keeps its right side plain.
+func styleMeta(right string, cur bool) string {
+	parts := strings.Split(right, " · ")
+	warn := false
+	for _, part := range parts {
+		warn = warn || warnTags[strings.TrimSpace(part)]
 	}
-	return prefix[:len(indent)] + mark + " " + box + " " + lab + "  " + meta
+	if !warn {
+		if cur {
+			return right
+		}
+		return dimStyle.Render(right)
+	}
+	styled := make([]string, len(parts))
+	for i, part := range parts {
+		if warnTags[strings.TrimSpace(part)] {
+			styled[i] = warnStyle.Render(part)
+		} else {
+			styled[i] = dimStyle.Render(part)
+		}
+	}
+	return strings.Join(styled, dimStyle.Render(" · "))
 }
 
 func (m model) viewConfirm() string {

@@ -20,8 +20,11 @@ Options:
   -summary             print one line for each repository and a total line, then exit
   -usage               print the storage of each repository, largest first, then exit
   -artifact-list       print one line for each artifact with size, dates, and status, then exit
+  -advice             print advice on expired, old, and large artifacts, then exit
+  -min-size size       with -artifact-list, only artifacts of this size or more, such as 50MB
+  -top n               with -usage, only the n largest repositories
   -format text|json|csv
-                       write the report of -summary, -usage, or -artifact-list in this format
+                       write the report of -summary, -usage, -artifact-list, or -advice in this format
   -output file         write that report to this file instead of standard output
   -retention-days n    set the artifact and log retention of each repository to n days, then exit
   -actions-pr-approval allow|deny
