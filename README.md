@@ -15,10 +15,21 @@ Expired artifacts cannot be downloaded, but they still count against the Actions
 - macOS or Linux, with GNU make (the `make` that ships with both)
 - Podman, or Docker (`CONTAINER_ENGINE=docker`)
 - [GitHub CLI](https://cli.github.com) 2.40 or newer, logged in, when you run the tool on the host
-- `repo` scope if the repository is private, and to delete caches
-- `repo` scope and admin access to the repository, to change its settings with `--retention-days` or `--actions-pr-approval`
+- a token with the permissions of the table in [Token permissions](#token-permissions)
 
 Go does not need to be installed. `make build` and `make test` compile inside `docker.io/library/golang:1.22-bookworm` and write a binary for the machine you are on. The Go cache is kept in the container volumes `gh-sweep-gocache` and `gh-sweep-gomod`, not in the project directory. `make clean` removes `bin/`, those volumes, and a leftover `.cache` from an older build. `make clean FORCE=1` also force-removes the `gh-sweep` image and any containers still using it. On macOS that directory belongs to the container user, so `make clean` deletes it from inside the container.
+
+## Token permissions
+
+gh-sweep uses the token of `gh`. A fine-grained personal access token works for each flag in the table. Give the token access to the repositories you name. Log in with it as `gh auth login --with-token < token.txt`, or set `GH_TOKEN`. The classic scope is the fallback for a classic token or for the token of `gh auth login`.
+
+| What | Fine-grained permission | Classic scope |
+| --- | --- | --- |
+| Checklist, `--summary`, `--usage`, `--artifact-list` | Repository: Actions read, and write to delete | `repo` |
+| `--retention-days`, `--actions-pr-approval` | Repository: Administration read and write | `repo`, and admin access to the repository |
+| `--delete-runs`, `--delete-run-logs` | Repository: Actions read and write | `repo` |
+
+Each fine-grained token also has Repository: Metadata read. The table comes from the GitHub data files `fine-grained-pat.json` and `fine-grained-pat-permissions.json` (repository github/docs) and from the REST API description (repository github/rest-api-description), read on 2026-11-28. The tests of this project do not call GitHub, so no test proves the table. `gh repo list`, which gh-sweep runs when no repository is named, uses the GraphQL API of GitHub. It is expected to list only the repositories that the fine-grained token can access, but this is not tested.
 
 ## Install
 
@@ -135,6 +146,29 @@ rbe/erechnung: actions-pr-approval allow, set deny
 
 Name the repositories, or pass `--mine`, `--org`, or `--user`. With none of them, the tool changes nothing and exits with an error. Put the flags before the repository names. A settings flag together with `--summary`, `--usage`, or `--artifact-list` is an error. If one repository fails, for example because you are not an admin there, the tool prints the error, goes on with the next repository, and exits with status 1. An organization or enterprise policy can block either setting, and GitHub then refuses the change.
 
+### Workflow runs
+
+```bash
+gh-sweep --dry-run --delete-runs --older-than 90 rbe/erechnung
+gh-sweep --delete-runs --status failure --branch main rbe/erechnung
+gh-sweep --delete-run-logs --older-than 30 --mine
+```
+
+`--delete-runs` deletes workflow runs. GitHub deletes the logs of a run together with the run. `--delete-run-logs` deletes only the logs and keeps the runs. Both flags take only runs with the status `completed`, so a run that still runs or waits stays. They print one line for each run, then a total line, and exit:
+
+```text
+rbe/erechnung: run 1234567 "CI", branch main, conclusion failure, created 2026-08-01, deleted
+total: deleted 1 workflow runs
+```
+
+The filters select the runs. Give at least one:
+
+- `--older-than N` takes runs created more than N days ago.
+- `--branch NAME` takes runs of that branch.
+- `--status VALUE` takes runs with that status or conclusion, such as `failure`, `cancelled`, or `success`.
+
+GitHub gives at most 1,000 runs for one call with `--branch` or `--status`. Run the flag again to take more. With `--dry-run` the tool deletes nothing and prints `would delete`. Name the repositories, or pass `--mine`, `--org`, or `--user`. With none of them, the tool changes nothing and exits with an error. If one repository fails, the tool prints the error, goes on with the next repository, and exits with status 1. A deleted run cannot be restored.
+
 ### Projects
 
 | Key | Action |
@@ -194,6 +228,13 @@ make test
 ```
 
 The tests run inside the Go container. `make coverage` reports the lines a change touched, and `make test-changed` then runs the tests of the packages that cover the change.
+
+A workflow run, or only its logs:
+
+```bash
+gh api -X DELETE repos/OWNER/REPO/actions/runs/RUN_ID
+gh api -X DELETE repos/OWNER/REPO/actions/runs/RUN_ID/logs
+```
 
 ## What gets changed
 

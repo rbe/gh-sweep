@@ -23,10 +23,10 @@ endpoint=""
 repo=""
 prev=""
 for a in "$@"; do
-  if [[ $a == DELETE || $a == PUT ]]; then
+  if [[ $a == DELETE || $a == PUT || $a == POST || $a == PATCH ]]; then
     method=$a
   fi
-  if [[ $a == repos/* ]]; then
+  if [[ $a == repos/* || $a == user/* || $a == users/* || $a == orgs/* || $a == user ]]; then
     endpoint=$a
   fi
   if [[ $prev == -R || $prev == --repo ]]; then
@@ -39,6 +39,39 @@ nwo_from_endpoint() {
   local body=${1#repos/}
   printf '%s' "${body%%/actions/*}"
 }
+
+# The endpoints after the settings. A GET prints the file
+# $GH_MOCK_DIR/<path with _ for />, or nothing when there is none. When the
+# file <that name>.fail exists, the call fails with its text. A write logs
+# "<METHOD> <path> <fields>" and prints nothing.
+mock_file() {
+  local path=${endpoint%%\?*}
+  printf '%s/%s' "$GH_MOCK_DIR" "${path//\//_}"
+}
+if [[ ${1:-} == api && -n ${GH_MOCK_DIR:-} && -n $endpoint && $endpoint != */actions/artifacts* && $endpoint != */actions/permissions/* ]]; then
+  file=$(mock_file)
+  if [[ -f $file.fail ]]; then
+    cat "$file.fail" >&2
+    exit 1
+  fi
+  if [[ $method == GET ]]; then
+    printf 'GET %s\n' "$endpoint" >> "$log"
+    if [[ -f $file ]]; then
+      cat "$file"
+    fi
+    exit 0
+  fi
+  fields=""
+  prev=""
+  for a in "$@"; do
+    if [[ $prev == -f || $prev == -F || $prev == --field || $prev == --raw-field ]]; then
+      fields="$fields $a"
+    fi
+    prev=$a
+  done
+  printf '%s %s%s\n' "$method" "$endpoint" "$fields" >> "$log"
+  exit 0
+fi
 
 # The settings endpoints. GH_MOCK_SETTINGS_FAIL names a repository whose
 # settings calls fail.

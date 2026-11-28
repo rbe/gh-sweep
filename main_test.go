@@ -148,7 +148,28 @@ func mockInventory(t *testing.T) string {
 	t.Setenv("GH_MOCK_ART", filepath.Join(root, "art"))
 	t.Setenv("GH_MOCK_CACHES", filepath.Join(root, "cache"))
 	t.Setenv("GH_MOCK_ART_OTHER", filepath.Join(root, "none"))
+	api := filepath.Join(root, "api")
+	if err := os.Mkdir(api, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GH_MOCK_DIR", api)
 	return log
+}
+
+// mockAPI gives the answer of test/mock-gh to a GET of the path, such as
+// repos/acme/widgets/actions/runs. A path that ends in .fail makes the call
+// fail with the text.
+func mockAPI(t *testing.T, path, text string) {
+	t.Helper()
+	name := filepath.Join(os.Getenv("GH_MOCK_DIR"), strings.ReplaceAll(path, "/", "_"))
+	if err := os.WriteFile(name, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// fields joins the fields of one line that a jq program of internal/gh writes.
+func fields(f ...string) string {
+	return strings.Join(f, "\x1f") + "\n"
 }
 
 func readLog(t *testing.T, path string) string {

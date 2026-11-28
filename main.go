@@ -27,6 +27,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	switch {
+	case cmd.job != nil:
+		err = runJob(cmd.options, cmd.job, cmd.filter, stdout, stderr)
 	case !cmd.settings.Empty():
 		err = applySettings(cmd.options, cmd.settings, stdout, stderr)
 	case cmd.report != nil:
@@ -155,6 +157,8 @@ type cli struct {
 	options  ui.Options
 	report   *report
 	settings project.SettingsChange
+	job      *job
+	filter   project.Filter
 }
 
 func parseCLI(args []string) (cli, error) {
@@ -189,6 +193,7 @@ func parseCLI(args []string) (cli, error) {
 		}
 		return fmt.Errorf("give allow or deny")
 	})
+	jobs := registerJobs(fs, allJobs())
 	var repos []string
 	fs.Func("repo", "repository owner/name (repeatable)", func(s string) error {
 		repos = append(repos, s)
@@ -217,7 +222,15 @@ func parseCLI(args []string) (cli, error) {
 	if err != nil {
 		return cli{}, err
 	}
-	if err := checkSettingsTarget(settings, chosen, len(repos) > 0 || *org != "" || *user != "" || *mine); err != nil {
+	named := len(repos) > 0 || *org != "" || *user != "" || *mine
+	if err := checkSettingsTarget(settings, chosen, named); err != nil {
+		return cli{}, err
+	}
+	j, err := jobs.choose()
+	if err != nil {
+		return cli{}, err
+	}
+	if err := checkJob(j, jobs.filter, chosen, settings, named); err != nil {
 		return cli{}, err
 	}
 	wantCache := !*artOnly
@@ -237,7 +250,30 @@ func parseCLI(args []string) (cli, error) {
 		},
 		report:   chosen,
 		settings: settings,
+		job:      j,
+		filter:   jobs.filter,
 	}, nil
+}
+
+// allJobs are the write flags that run in each named repository.
+func allJobs() []job {
+	return append([]job{}, runJobs...)
+}
+
+// checkJob refuses a write flag together with a report flag or a settings
+// flag, a write flag with no named target, and a status that GitHub does
+// not accept.
+func checkJob(j *job, f project.Filter, chosen *report, c project.SettingsChange, named bool) error {
+	if j == nil {
+		return nil
+	}
+	if chosen != nil || !c.Empty() {
+		return fmt.Errorf("%s does not combine with a report flag or a settings flag", j.flag)
+	}
+	if err := checkWriteTarget(j.flag, named); err != nil {
+		return err
+	}
+	return project.CheckRunStatus(f.Status)
 }
 
 // checkSettingsTarget refuses a settings change together with a report, and
@@ -396,6 +432,13 @@ Options:
   -retention-days n    set the artifact and log retention of each repository to n days, then exit
   -actions-pr-approval allow|deny
                        allow or deny that GitHub Actions creates and approves pull requests, then exit
+  -delete-runs         delete completed workflow runs and their logs, then exit
+  -delete-run-logs     delete the logs of completed workflow runs and keep the runs, then exit
+
+Filters of the write flags:
+  -older-than n        only entries more than n days old
+  -branch name         only workflow runs of this branch
+  -status value        only workflow runs with this status or conclusion, such as failure
   -h                   show this help
 
 Project keys:
