@@ -162,7 +162,7 @@ gh-sweep --advice --org my-org
 ```text
 1. Largest repositories: rbe/erechnung (3.4 GB), other/app (12.0 MB).
 2. Expired artifacts: 12, size 1.2 GB. They still count against the quota. In a repository of the checklist, x selects them.
-3. Active artifacts older than 30 days: 4, size 300 MB. In a repository of the checklist, o selects them.
+3. Active artifacts older than 5 days: 4, size 300 MB. In a repository of the checklist, o selects them.
 4. Artifacts of 50.0 MB or more: 3, size 2.1 GB. Upload fewer files, or set a shorter retention with --retention-days.
 total: repositories 2, size 3.4 GB
 ```
@@ -295,7 +295,7 @@ rbe/erechnung: release 1234 "v1.0.0", tag v1.0.0, created 2026-01-01, assets 2, 
 total: deleted 1 releases, size 3.0 MB
 ```
 
-`--delete-package-versions` deletes versions of one package. `--package NAME` names the package, and `--package-type` is `container` (the default), `npm`, `maven`, `rubygems`, `docker`, or `nuget`. Pass `--mine` for your own package or `--org NAME` for a package of an organization. Give at least one of `--untagged`, `--older-than N`, and `--keep N`. The newest version always stays. GitHub refuses to delete a version of a public package with more than 5,000 downloads.
+`--delete-package-versions` deletes versions of one package. `--package NAME` names the package, and `--package-type` is `container` (the default), `npm`, `maven`, `rubygems`, `docker`, or `nuget`. Pass `--mine` for your own package or `--org NAME` for a package of an organization. Give at least one of `--untagged`, `--older-than N`, and `--keep N`. The newest version always stays. A version with the tag `latest` also stays: it is the last image published from `main`, and it stays until another build of `main` replaces it. GitHub refuses to delete a version of a public package with more than 5,000 downloads.
 
 Warning: a multi-platform container image is a tagged index plus one untagged version for each platform. `--untagged` takes those platform versions too, and the tagged image then no longer pulls. Run `--dry-run` first, and use `--untagged` only for a package of single-platform images.
 

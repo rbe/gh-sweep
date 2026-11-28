@@ -10,7 +10,7 @@ import (
 const LargeArtifactBytes int64 = 50 << 20
 
 // OldArtifactDays is the age in days after which an active artifact is old.
-const OldArtifactDays = 30
+const OldArtifactDays = 5
 
 // Large tells whether the item is an artifact of LargeArtifactBytes or more.
 func (it Item) Large() bool {

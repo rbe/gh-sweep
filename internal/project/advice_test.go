@@ -30,7 +30,7 @@ func TestAdviceNamesTheLargestRepositoriesAndTheExpiredOldAndLargeArtifacts(t *t
 	want := strings.Join([]string{
 		"1. Largest repositories: acme/big (63.0 MB), acme/small (1.0 KB).",
 		"2. Expired artifacts: 1, size 1.0 MB. They still count against the quota. In a repository of the checklist, x selects them.",
-		"3. Active artifacts older than 30 days: 1, size 2.0 MB. In a repository of the checklist, o selects them.",
+		"3. Active artifacts older than 5 days: 2, size 62.0 MB. In a repository of the checklist, o selects them.",
 		"4. Artifacts of 50.0 MB or more: 1, size 60.0 MB. Upload fewer files, or set a shorter retention with --retention-days.",
 		"total: repositories 2, size 63.0 MB",
 	}, "\n")
