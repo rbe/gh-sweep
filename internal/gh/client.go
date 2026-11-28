@@ -30,7 +30,8 @@ const artifactJQ = `def clean:
       (.created_at // ""),
       (if .expired then "1" else "0" end),
       (((.workflow_run // {}) | .head_branch // "") | clean),
-      (((.workflow_run // {}) | .id // 0) | tostring)
+      (((.workflow_run // {}) | .id // 0) | tostring),
+      (.expires_at // "")
     ]
   | join("\u001f")
 )`
@@ -208,6 +209,10 @@ func ParseArtifacts(raw string) (items []project.Item, total int) {
 		if len([]rune(name)) > 300 {
 			name = string([]rune(name)[:300])
 		}
+		var expires time.Time
+		if len(f) > 7 {
+			expires = format.ParseGitHubTime(f[7])
+		}
 		items = append(items, project.Item{
 			Kind:    "artifact",
 			ID:      id,
@@ -217,6 +222,7 @@ func ParseArtifacts(raw string) (items []project.Item, total int) {
 			Expired: strings.TrimSpace(f[4]) == "1",
 			Meta:    format.ShortenRef(format.StripControls(f[5])),
 			Run:     format.StripControls(f[6]),
+			Expires: expires,
 			Group:   -1,
 		})
 	}

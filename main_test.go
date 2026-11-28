@@ -144,8 +144,8 @@ func mockInventory(t *testing.T) string {
 	root := t.TempDir()
 	artifacts := strings.Join([]string{
 		"T 2",
-		strings.Join([]string{"101", "dist", "1048576", "2026-11-12T12:00:00Z", "0", "main", "500"}, "\x1f"),
-		strings.Join([]string{"100", "dist", "524288", "2026-11-10T12:00:00Z", "0", "main", "499"}, "\x1f"),
+		strings.Join([]string{"101", "dist", "1048576", "2026-11-12T12:00:00Z", "0", "main", "500", "2027-02-10T12:00:00Z"}, "\x1f"),
+		strings.Join([]string{"100", "dist", "524288", "2026-11-10T12:00:00Z", "1", "main", "499", "2026-11-20T12:00:00Z"}, "\x1f"),
 	}, "\n") + "\n"
 	caches := strings.Join([]string{"7", "node-Linux-abc", "2097152", "2026-11-01T00:00:00Z", "refs/heads/main", "2026-11-13T12:00:00Z"}, "\x1f") + "\n"
 	for name, text := range map[string]string{"art": artifacts, "cache": caches, "none": ""} {

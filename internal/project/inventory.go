@@ -17,6 +17,8 @@ type Item struct {
 	When    time.Time
 	Meta    string
 	Expired bool
+	// Expires is the time GitHub deletes an artifact. It is zero for a cache.
+	Expires time.Time
 	Run     string
 	On      bool
 	Dead    bool

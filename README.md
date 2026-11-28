@@ -71,6 +71,39 @@ total: artifacts 45, caches 7, size 3.4 GB
 
 A repository with no artifact and no cache gets no line. When no repository has an entry, the tool prints only the total line, with zeros. The total line comes last. `--org`, `--user`, `--artifacts-only`, and `--caches-only` work as they do for the checklist. `--summary` together with `--dry-run` behaves as `--summary`. An error from `gh` is printed to standard error, the tool prints no summary, and the exit status is not zero.
 
+### Storage usage
+
+```bash
+gh-sweep --usage                      # repositories of the logged-in user
+gh-sweep --usage rbe/erechnung other/app
+```
+
+`--usage` prints one line for each repository, largest first, then a total line, and exits. It deletes nothing:
+
+```text
+rbe/erechnung: size 3.4 GB (3650722201 bytes), artifacts 3.1 GB, expired artifacts 1.2 GB, caches 300 MB, share 99.7%
+other/app: size 12.0 MB (12582912 bytes), artifacts 12.0 MB, expired artifacts 0 B, caches 0 B, share 0.3%
+total: size 3.4 GB (3663305113 bytes), artifacts 3.1 GB, expired artifacts 1.2 GB, caches 300 MB
+```
+
+The size is the sum of the artifacts and the caches that the API lists. A repository with no artifact and no cache gets no line.
+
+### Artifact list
+
+```bash
+gh-sweep --artifact-list rbe/erechnung
+```
+
+`--artifact-list` prints one line for each artifact, then a total line, and exits. It deletes nothing and reads no cache. The artifacts of a repository stand largest first. Dates are UTC, and `-` is a date that GitHub did not give:
+
+```text
+rbe/erechnung: dist #2207435, size 512 MB, created 2026-11-20, expires 2027-02-18, status active
+rbe/erechnung: coverage #2101113, size 40.0 MB, created 2026-08-01, expires 2026-10-30, status expired
+total: artifacts 2, size 552 MB, expired 1, expired size 40.0 MB
+```
+
+Use only one of `--summary`, `--usage`, and `--artifact-list`. `--artifact-list` together with `--caches-only` is an error. Errors from `gh` and the other flags behave as for `--summary`.
+
 ### Projects
 
 | Key | Action |
@@ -80,6 +113,7 @@ A repository with no artifact and no cache gets no line. When no repository has 
 | a / n | Mark all shown repositories, or clear them. |
 | d | Delete everything in the marked repositories, after a confirmation. |
 | s | Scan sizes without deleting. |
+| u | Show the storage usage of the scanned projects, largest first. |
 | + | Add `owner/repo`. |
 | / | Filter the list. Type to narrow it. Esc clears it. |
 | q | Quit. |
@@ -97,6 +131,7 @@ A repository with no artifact and no cache gets no line. When no repository has 
 | x | Select expired artifacts. |
 | o | Select artifacts older than a number of days. |
 | t | Keep the newest N of each artifact name, and select the rest. |
+| i | Show each artifact with its size, creation date, expiration date, and status. |
 | d | Delete the checked rows. `y` confirms. |
 | b | Back to the project list. |
 | / | Filter by name, branch, ref, or id. |
