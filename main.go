@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/rbe/gh-sweep/internal/gh"
 	"github.com/rbe/gh-sweep/internal/project"
@@ -17,16 +18,20 @@ func main() {
 
 // run is the tool for one command line. It returns the exit status.
 // With --summary, --usage, or --artifact-list it prints that report and does
-// not open the checklist.
+// not open the checklist. With --retention-days or --actions-pr-approval it
+// changes those settings and does not open the checklist.
 func run(args []string, stdout, stderr io.Writer) int {
 	cmd, err := parseCLI(args)
 	if err != nil {
 		fmt.Fprintf(stderr, "gh-sweep: %s\n", err)
 		return 2
 	}
-	if cmd.report != nil {
+	switch {
+	case !cmd.settings.Empty():
+		err = applySettings(cmd.options, cmd.settings, stdout, stderr)
+	case cmd.report != nil:
 		err = printReport(cmd.options, cmd.report, stdout, stderr)
-	} else {
+	default:
 		err = ui.Run(cmd.options)
 	}
 	if err != nil {
@@ -127,11 +132,12 @@ func loadInventories(repositories []project.Project, wantArt, wantCache bool) ([
 	return inventories, nil
 }
 
-// cli is one parsed command line: the options of the checklist, and the
-// report to print, or nil for the checklist.
+// cli is one parsed command line: the options of the checklist, the
+// report to print, or nil for the checklist, and the settings to change.
 type cli struct {
-	options ui.Options
-	report  *report
+	options  ui.Options
+	report   *report
+	settings project.SettingsChange
 }
 
 func parseCLI(args []string) (cli, error) {
@@ -148,6 +154,24 @@ func parseCLI(args []string) (cli, error) {
 	usage := fs.Bool("usage", false, "print the storage of each repository, largest first, then exit")
 	artifactList := fs.Bool("artifact-list", false, "print one line for each artifact with size, dates, and status, then exit")
 	filter := fs.String("filter", "", "initial item filter")
+	var settings project.SettingsChange
+	fs.Func("retention-days", "set the artifact and log retention to this number of days, then exit", func(s string) error {
+		days, err := strconv.Atoi(s)
+		if err != nil || days < 1 {
+			return fmt.Errorf("give a number of days of 1 or more")
+		}
+		settings.RetentionDays = days
+		return nil
+	})
+	fs.Func("actions-pr-approval", "allow or deny that GitHub Actions creates and approves pull requests, then exit", func(s string) error {
+		switch s {
+		case "allow", "deny":
+			allow := s == "allow"
+			settings.PRApproval = &allow
+			return nil
+		}
+		return fmt.Errorf("give allow or deny")
+	})
 	var repos []string
 	fs.Func("repo", "repository owner/name (repeatable)", func(s string) error {
 		repos = append(repos, s)
@@ -176,6 +200,9 @@ func parseCLI(args []string) (cli, error) {
 	if err != nil {
 		return cli{}, err
 	}
+	if err := checkSettingsTarget(settings, chosen, len(repos) > 0 || *org != "" || *user != "" || *mine); err != nil {
+		return cli{}, err
+	}
 	wantCache := !*artOnly
 	if *artifactList {
 		wantCache = false
@@ -191,8 +218,116 @@ func parseCLI(args []string) (cli, error) {
 			DryRun:    *dry,
 			Filter:    *filter,
 		},
-		report: chosen,
+		report:   chosen,
+		settings: settings,
 	}, nil
+}
+
+// checkSettingsTarget refuses a settings change together with a report, and
+// a settings change that names no repository, no --org, no --user, and no
+// --mine.
+func checkSettingsTarget(c project.SettingsChange, chosen *report, named bool) error {
+	if c.Empty() {
+		return nil
+	}
+	if chosen != nil {
+		return fmt.Errorf("--retention-days and --actions-pr-approval do not combine with --summary, --usage, or --artifact-list")
+	}
+	if !named {
+		return fmt.Errorf("to change settings, name the repositories, or pass --mine, --org, or --user")
+	}
+	return nil
+}
+
+// applySettings changes the settings of each named repository and prints one
+// line for each setting. An error in one repository goes to stderr, and the
+// next repository still gets its change.
+func applySettings(o ui.Options, c project.SettingsChange, stdout, stderr io.Writer) error {
+	if err := gh.Auth(); err != nil {
+		return err
+	}
+	names, note, err := reportNames(o, "settings change")
+	if err != nil {
+		return err
+	}
+	repositories, err := parseRepositories(names)
+	if err != nil {
+		return err
+	}
+	failed := 0
+	for _, p := range repositories {
+		lines, err := changeSettings(p, c, o.DryRun)
+		for _, line := range lines {
+			fmt.Fprintln(stdout, line)
+		}
+		if err != nil {
+			fmt.Fprintf(stderr, "gh-sweep: %s: %s\n", p.NWO, err)
+			failed++
+		}
+	}
+	if note != "" {
+		fmt.Fprintf(stderr, "gh-sweep: %s\n", note)
+	}
+	if failed > 0 {
+		return fmt.Errorf("the settings of %d of %d repositories did not change", failed, len(repositories))
+	}
+	return nil
+}
+
+// changeSettings changes the settings of one repository. It stops at the
+// first error and gives the lines of the settings done before it.
+func changeSettings(p project.Project, c project.SettingsChange, dryRun bool) ([]string, error) {
+	var lines []string
+	if c.RetentionDays > 0 {
+		line, err := changeRetention(p, c.RetentionDays, dryRun)
+		if err != nil {
+			return lines, err
+		}
+		lines = append(lines, line)
+	}
+	if c.PRApproval != nil {
+		line, err := changePRApproval(p, *c.PRApproval, dryRun)
+		if err != nil {
+			return lines, err
+		}
+		lines = append(lines, line)
+	}
+	return lines, nil
+}
+
+// changeRetention reads the retention, checks the maximum, and writes the
+// new value when it differs and dryRun is false.
+func changeRetention(p project.Project, days int, dryRun bool) (string, error) {
+	before, err := gh.GetRetention(p)
+	if err != nil {
+		return "", err
+	}
+	if err := project.CheckRetentionDays(days, before); err != nil {
+		return "", err
+	}
+	if !dryRun && before.Days != days {
+		if err := gh.SetRetention(p, days); err != nil {
+			return "", err
+		}
+	}
+	return project.RetentionLine(p.NWO, before, days, dryRun), nil
+}
+
+// changePRApproval reads the workflow permissions and writes the new pull
+// request setting when it differs and dryRun is false.
+func changePRApproval(p project.Project, allow, dryRun bool) (string, error) {
+	before, err := gh.GetWorkflowPermissions(p)
+	if err != nil {
+		return "", err
+	}
+	if !dryRun && before.CanApprovePRs != allow {
+		after := before
+		after.CanApprovePRs = allow
+		if err := gh.SetWorkflowPermissions(p, after); err != nil {
+			return "", err
+		}
+	}
+	return project.PRApprovalLine(p.NWO, before.CanApprovePRs, allow, dryRun), nil
 }
 
 // chooseReport gives the report of the one report flag that is set, or nil.
@@ -241,6 +376,9 @@ Options:
   -summary             print one line for each repository and a total line, then exit
   -usage               print the storage of each repository, largest first, then exit
   -artifact-list       print one line for each artifact with size, dates, and status, then exit
+  -retention-days n    set the artifact and log retention of each repository to n days, then exit
+  -actions-pr-approval allow|deny
+                       allow or deny that GitHub Actions creates and approves pull requests, then exit
   -h                   show this help
 
 Project keys:
