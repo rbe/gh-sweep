@@ -67,6 +67,19 @@ if [[ ${1:-} == api && $endpoint == */actions/permissions/* ]]; then
   exit 0
 fi
 
+# GH_MOCK_FAIL names a repository whose artifacts fail.
+# GH_MOCK_CACHE_FAIL names a repository whose caches fail.
+if [[ ${1:-} == api && $endpoint == *actions/artifacts* && $method == GET ]]; then
+  if [[ $(nwo_from_endpoint "$endpoint") == "${GH_MOCK_FAIL:-}" ]]; then
+    printf 'HTTP 404: Not Found\n' >&2
+    exit 1
+  fi
+fi
+if [[ ${1:-} == cache && $repo == "${GH_MOCK_CACHE_FAIL:-}" && -n $repo ]]; then
+  printf 'HTTP 403: Resource not accessible by personal access token\n' >&2
+  exit 1
+fi
+
 if [[ ${1:-} == api ]]; then
   if [[ $method == DELETE ]]; then
     id=${endpoint##*/}

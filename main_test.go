@@ -95,24 +95,6 @@ func TestSummarySaysWhenGHGaveOnlyTheFirstRepositories(t *testing.T) {
 	}
 }
 
-func TestSummaryPrintsAnErrorFromGHAndFails(t *testing.T) {
-	// gh fails for every command after the login check, then only for the caches.
-	for _, passes := range []string{"auth", "auth|api"} {
-		root := t.TempDir()
-		script := "#!/bin/sh\ncase \"$1\" in " + passes + ") exit 0 ;; esac\nprintf '%s\\n' 'gh: HTTP 404: Not Found' >&2\nexit 1\n"
-		if err := os.WriteFile(filepath.Join(root, "gh"), []byte(script), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
-
-		var stdout, stderr bytes.Buffer
-		status := run([]string{"--summary", "acme/widgets"}, &stdout, &stderr)
-		if status == 0 || stdout.Len() != 0 || stderr.String() != "gh-sweep: acme/widgets: HTTP 404: Not Found\n" {
-			t.Fatalf("gh passes %s: status %d\nstdout\n%sstderr\n%s", passes, status, stdout.String(), stderr.String())
-		}
-	}
-}
-
 func TestSummaryCountsARepeatedRepositoryOnce(t *testing.T) {
 	mockInventory(t)
 
