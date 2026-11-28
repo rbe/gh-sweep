@@ -24,6 +24,7 @@ const (
 	scrResult
 	scrHelp
 	scrPrompt
+	scrReport
 )
 
 const (
@@ -96,6 +97,8 @@ type model struct {
 	promptKind string
 	promptFrom screen
 	helpFrom   screen
+
+	report reportState
 
 	jobs        []delJob
 	jobi        int
@@ -349,6 +352,8 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.screen = m.helpFrom
 		return m, nil
+	case scrReport:
+		return m.onReport(s)
 	case scrResult:
 		if s == "q" {
 			return m, tea.Quit
@@ -462,6 +467,8 @@ func (m model) onProjects(s string) (tea.Model, tea.Cmd) {
 			m.projFilterEdit = false
 			m.rebuildProj()
 		}
+	case "u":
+		m.openUsage()
 	case "?":
 		m.helpFrom = scrProjects
 		m.screen = scrHelp
@@ -536,6 +543,8 @@ func (m model) onItems(s string) (tea.Model, tea.Cmd) {
 			m.rows = m.projects[m.open].Rows(m.filter, m.opts.WantArt, m.opts.WantCache)
 			m.clampCursor()
 		}
+	case "i":
+		m.openArtifactList()
 	case "?":
 		m.helpFrom = scrItems
 		m.screen = scrHelp
@@ -1222,6 +1231,8 @@ func (m model) View() string {
 		return m.viewHelp()
 	case scrPrompt:
 		return m.viewPrompt()
+	case scrReport:
+		return m.viewReport()
 	default:
 		return m.viewProjects()
 	}
@@ -1273,7 +1284,7 @@ func (m model) viewProjects() string {
 	}
 	b.WriteString(dimStyle.Render(format.Fit(sum, m.width-1)))
 	b.WriteByte('\n')
-	keys := "space mark    enter pick    a all    n none    d wipe    s scan    + add    / find    q quit"
+	keys := "space mark    enter pick    a all    n none    d wipe    s scan    u usage    + add    / find    q quit"
 	if m.projFilterEdit {
 		keys = "type to filter    enter done    esc clear"
 	}
@@ -1385,7 +1396,7 @@ func (m model) viewItems() string {
 		sum = fmt.Sprintf("%d selected · %s · %d artifacts · %d caches", n, format.HumanSize(bytes), arts, caches)
 	}
 	b.WriteString(dimStyle.Render(format.Fit(sum, m.width-1)) + "\n")
-	keys := "space select    j/k move    enter open    d delete    t trim    x expired    b back    q quit"
+	keys := "space select    j/k move    enter open    d delete    t trim    x expired    i details    b back    q quit"
 	if m.filterEdit {
 		keys = "type to filter    enter done    esc clear    arrows move"
 	}
@@ -1447,6 +1458,8 @@ func (m model) itemLine(cur bool, r project.ViewRow) string {
 		right := fmt.Sprintf("%s · %s · %s · #%s", it.Meta, format.HumanTime(it.When), format.HumanSize(it.Size), it.ID)
 		if it.Expired {
 			right += " · expired"
+		} else if !it.Expires.IsZero() {
+			right += " · expires " + format.Date(it.Expires)
 		}
 		return m.renderRow(2, cur, state, it.Name, right, false)
 	}
@@ -1629,6 +1642,8 @@ enter      toggle an item, or open and close a group
 j/k        move        h/l fold        e/c fold all
 a/n        select or clear what the filter shows
 x          select expired artifacts (they still use quota)
+u          storage usage of the scanned projects
+i          details of each artifact in the open project
 o          select artifacts older than N days
 t          keep the newest N of each name, select the rest
 d          delete       / filter       r refresh

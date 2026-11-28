@@ -52,6 +52,14 @@ func HumanTime(t time.Time) string {
 	}
 }
 
+// Date is the UTC calendar date of t, as 2026-11-28, or "-" for the zero time.
+func Date(t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	return t.UTC().Format("2006-01-02")
+}
+
 func ParseGitHubTime(s string) time.Time {
 	s = strings.TrimSpace(s)
 	if s == "" || s == "null" {

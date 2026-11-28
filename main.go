@@ -16,15 +16,16 @@ func main() {
 }
 
 // run is the tool for one command line. It returns the exit status.
-// With --summary it prints the summary and does not open the checklist.
+// With --summary, --usage, or --artifact-list it prints that report and does
+// not open the checklist.
 func run(args []string, stdout, stderr io.Writer) int {
 	cmd, err := parseCLI(args)
 	if err != nil {
 		fmt.Fprintf(stderr, "gh-sweep: %s\n", err)
 		return 2
 	}
-	if cmd.summary {
-		err = printSummary(cmd.options, stdout, stderr)
+	if cmd.report != nil {
+		err = printReport(cmd.options, cmd.report, stdout, stderr)
 	} else {
 		err = ui.Run(cmd.options)
 	}
@@ -35,13 +36,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// printSummary loads the inventories and writes the summary lines to stdout.
-// It writes nothing to stdout when an inventory cannot be loaded.
-func printSummary(o ui.Options, stdout, stderr io.Writer) error {
+// report is one plain-text report: its name in a note, and the function
+// that turns the loaded inventories into its lines.
+type report struct {
+	name  string
+	lines func([]project.Project) []string
+}
+
+// printReport loads the inventories and writes the lines of the report to
+// stdout. It writes nothing to stdout when an inventory cannot be loaded.
+func printReport(o ui.Options, r *report, stdout, stderr io.Writer) error {
 	if err := gh.Auth(); err != nil {
 		return err
 	}
-	names, note, err := summaryNames(o)
+	names, note, err := reportNames(o, r.name)
 	if err != nil {
 		return err
 	}
@@ -53,7 +61,7 @@ func printSummary(o ui.Options, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	for _, line := range project.SummaryLines(inventories) {
+	for _, line := range r.lines(inventories) {
 		fmt.Fprintln(stdout, line)
 	}
 	if note != "" {
@@ -62,10 +70,10 @@ func printSummary(o ui.Options, stdout, stderr io.Writer) error {
 	return nil
 }
 
-// summaryNames names the repositories the summary covers: the repository
+// reportNames names the repositories a report covers: the repository
 // arguments, or the list gh gives for --org, --user, or the logged-in user.
 // The note is not empty when gh gave only the first part of that list.
-func summaryNames(o ui.Options) ([]string, string, error) {
+func reportNames(o ui.Options, name string) ([]string, string, error) {
 	if len(o.Repos) > 0 {
 		return o.Repos, "", nil
 	}
@@ -78,7 +86,7 @@ func summaryNames(o ui.Options) ([]string, string, error) {
 		return nil, "", err
 	}
 	if len(names) >= gh.ListCap {
-		return names, fmt.Sprintf("The summary covers the first %d repositories.", gh.ListCap), nil
+		return names, fmt.Sprintf("The %s covers the first %d repositories.", name, gh.ListCap), nil
 	}
 	return names, "", nil
 }
@@ -119,11 +127,11 @@ func loadInventories(repositories []project.Project, wantArt, wantCache bool) ([
 	return inventories, nil
 }
 
-// cli is one parsed command line: the options of the checklist, and
-// whether --summary is set.
+// cli is one parsed command line: the options of the checklist, and the
+// report to print, or nil for the checklist.
 type cli struct {
 	options ui.Options
-	summary bool
+	report  *report
 }
 
 func parseCLI(args []string) (cli, error) {
@@ -137,6 +145,8 @@ func parseCLI(args []string) (cli, error) {
 	cacheOnly := fs.Bool("caches-only", false, "don't list or delete artifacts")
 	dry := fs.Bool("dry-run", false, "confirm without deleting")
 	summary := fs.Bool("summary", false, "print one line for each repository and a total line, then exit")
+	usage := fs.Bool("usage", false, "print the storage of each repository, largest first, then exit")
+	artifactList := fs.Bool("artifact-list", false, "print one line for each artifact with size, dates, and status, then exit")
 	filter := fs.String("filter", "", "initial item filter")
 	var repos []string
 	fs.Func("repo", "repository owner/name (repeatable)", func(s string) error {
@@ -162,6 +172,14 @@ func parseCLI(args []string) (cli, error) {
 	if *artOnly && *cacheOnly {
 		return cli{}, fmt.Errorf("use either --artifacts-only or --caches-only")
 	}
+	chosen, err := chooseReport(*summary, *usage, *artifactList, *cacheOnly)
+	if err != nil {
+		return cli{}, err
+	}
+	wantCache := !*artOnly
+	if *artifactList {
+		wantCache = false
+	}
 	return cli{
 		options: ui.Options{
 			Repos:     repos,
@@ -169,12 +187,38 @@ func parseCLI(args []string) (cli, error) {
 			User:      *user,
 			Mine:      *mine,
 			WantArt:   !*cacheOnly,
-			WantCache: !*artOnly,
+			WantCache: wantCache,
 			DryRun:    *dry,
 			Filter:    *filter,
 		},
-		summary: *summary,
+		report: chosen,
 	}, nil
+}
+
+// chooseReport gives the report of the one report flag that is set, or nil.
+// It refuses two report flags, and --artifact-list with --caches-only.
+func chooseReport(summary, usage, artifactList, cacheOnly bool) (*report, error) {
+	set := 0
+	for _, on := range []bool{summary, usage, artifactList} {
+		if on {
+			set++
+		}
+	}
+	if set > 1 {
+		return nil, fmt.Errorf("use only one of --summary, --usage, or --artifact-list")
+	}
+	if artifactList && cacheOnly {
+		return nil, fmt.Errorf("--artifact-list lists artifacts. Do not combine it with --caches-only")
+	}
+	switch {
+	case summary:
+		return &report{name: "summary", lines: project.SummaryLines}, nil
+	case usage:
+		return &report{name: "usage breakdown", lines: project.UsageLines}, nil
+	case artifactList:
+		return &report{name: "artifact list", lines: project.ArtifactLines}, nil
+	}
+	return nil, nil
 }
 
 const usageText = `gh-sweep — delete GitHub Actions artifacts and caches
@@ -195,6 +239,8 @@ Options:
   -filter text         start the item view with this filter
   -dry-run             confirm without deleting
   -summary             print one line for each repository and a total line, then exit
+  -usage               print the storage of each repository, largest first, then exit
+  -artifact-list       print one line for each artifact with size, dates, and status, then exit
   -h                   show this help
 
 Project keys:
@@ -203,6 +249,7 @@ Project keys:
   a / n       mark all shown, or clear them
   d           delete everything marked
   s           scan sizes
+  u           storage usage of the scanned projects
   +           add owner/repo
   /           filter
   q           quit
@@ -215,6 +262,7 @@ Inside a repository:
   x           select expired artifacts
   o           select artifacts older than N days
   t           keep the newest N of each name, select the rest
+  i           details of each artifact
   d           delete the checked rows
   b           back to the project list
   q           quit
