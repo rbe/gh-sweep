@@ -259,7 +259,8 @@ func parseCLI(args []string) (cli, error) {
 // allJobs are the write flags that run in each named repository.
 func allJobs() []job {
 	jobs := append(append([]job{}, runJobs...), cacheJobs...)
-	return append(jobs, accountJobs...)
+	jobs = append(jobs, accountJobs...)
+	return append(jobs, billingJob)
 }
 
 // checkJob refuses a write flag together with a report flag or a settings
@@ -451,6 +452,7 @@ Options:
   -delete-package-versions
                        delete versions of the package that -package names, then exit
   -delete-codespaces   delete your stopped codespaces with no unsaved work, then exit
+  -billing             print the billed GitHub Actions usage of this month, then exit
 
 Filters of the write flags:
   -older-than n        only entries more than n days old

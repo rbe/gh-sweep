@@ -26,7 +26,7 @@ for a in "$@"; do
   if [[ $a == DELETE || $a == PUT || $a == POST || $a == PATCH ]]; then
     method=$a
   fi
-  if [[ $a == repos/* || $a == user/* || $a == users/* || $a == orgs/* || $a == user ]]; then
+  if [[ $a == repos/* || $a == user/* || $a == users/* || $a == orgs/* || $a == organizations/* || $a == user ]]; then
     endpoint=$a
   fi
   if [[ $prev == -R || $prev == --repo ]]; then

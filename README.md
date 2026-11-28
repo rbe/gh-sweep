@@ -33,6 +33,7 @@ gh-sweep uses the token of `gh`. A fine-grained personal access token works for 
 | `--delete-releases`, `--delete-release-assets` | Repository: Contents read and write | `repo` |
 | `--delete-package-versions` | **Does not work with a fine-grained token.** Use a classic token. | `read:packages` and `delete:packages` |
 | `--delete-codespaces` | Repository: Codespaces read and write | `codespace` |
+| `--billing` | User: Plan read. With `--org`: Organization: Administration read | The REST API description names no scope. |
 
 Each fine-grained token also has Repository: Metadata read. The REST endpoints of GitHub Packages are not in the list of endpoints that accept a fine-grained token, so `--delete-package-versions` needs a classic token. With the token of `gh auth login`, add the scopes with `gh auth refresh -s read:packages,delete:packages`. The table comes from the GitHub data files `fine-grained-pat.json` and `fine-grained-pat-permissions.json` (repository github/docs) and from the REST API description (repository github/rest-api-description), read on 2026-11-28. The tests of this project do not call GitHub, so no test proves the table. `gh repo list`, which gh-sweep runs when no repository is named, uses the GraphQL API of GitHub. It is expected to list only the repositories that the fine-grained token can access, but this is not tested.
 
@@ -228,6 +229,22 @@ Warning: a multi-platform container image is a tagged index plus one untagged ve
 `--delete-codespaces` deletes your stopped codespaces (state `Shutdown`). A codespace with uncommitted or unpushed changes stays, and a `kept:` line counts it. Pass `--mine` for all your codespaces, or name the repositories. `--older-than N` takes only codespaces last used more than N days ago. `--org` and `--user` are an error, because GitHub lists only the codespaces of the logged-in user.
 
 `--dry-run` and the errors behave as for `--delete-runs`. A deleted release, package version, or codespace cannot be restored.
+
+### Billed Actions usage
+
+```bash
+gh-sweep --billing                    # the logged-in user
+gh-sweep --billing --org my-org
+```
+
+`--billing` prints the GitHub Actions items of the billing usage summary of this month, then a total line, and exits. It reads `users/NAME/settings/billing/usage/summary?product=Actions`, or `organizations/NAME/settings/billing/usage/summary?product=Actions` with `--org`. `--user NAME` reads another user, and GitHub allows that only for your own account. Each line is one SKU, such as the minutes of Linux runners or the Actions storage:
+
+```text
+rbe: Actions actions_linux, 1200 minutes, gross $9.60, discount $9.60, net $0.00
+total: items 1, gross $9.60, net $0.00
+```
+
+The amounts are the US dollars that GitHub reports. The net amount is what GitHub bills after the included usage. GitHub marks this endpoint as public preview, and it gives data of the last 24 months only. A repository argument is an error, because GitHub bills an account.
 
 ### Projects
 
