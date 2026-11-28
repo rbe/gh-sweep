@@ -1,6 +1,6 @@
 // id: ADR-0010
 
-package main
+package cli
 
 import (
 	"bytes"
@@ -41,7 +41,7 @@ func TestDeleteReleasesKeepsTheNewestAndTheTags(t *testing.T) {
 	log := mockAccount(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-releases", "--keep", "1", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--delete-releases", "--keep", "1", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: release 2 \"v2\", tag v2, created 2026-06-01, assets 1, size 1.0 MB, deleted\n" +
 		"acme/widgets: release 1 \"v1\", tag v1, created 2026-01-01, assets 1, size 512 KB, deleted\n" +
 		"total: deleted 2 releases, size 1.5 MB\n"
@@ -59,7 +59,7 @@ func TestDeleteReleaseAssetsKeepsTheReleaseAndSkipsAnImmutableRelease(t *testing
 	log := mockAccount(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-release-assets", "--older-than", "30", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--delete-release-assets", "--older-than", "30", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: release v1 asset 11 \"app.tar.gz\", size 512 KB, deleted\n" +
 		"total: deleted 1 release assets, size 512 KB\n"
 	if status != 0 || stdout.String() != want {
@@ -76,7 +76,7 @@ func TestDeletePackageVersionsDeletesOnlyOldUntaggedVersionsAndKeepsTheNewest(t 
 	log := mockAccount(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-package-versions", "--package", "app", "--untagged", "--mine"}, &stdout, &stderr)
+	status := Run([]string{"--delete-package-versions", "--package", "app", "--untagged", "--mine"}, &stdout, &stderr)
 	want := "user: container app version 902 sha256:b, tags -, created 2026-10-01, deleted\n" +
 		"total: deleted 1 package versions\n"
 	if status != 0 || stdout.String() != want || stderr.Len() != 0 {
@@ -93,7 +93,7 @@ func TestDeletePackageVersionsOfAnOrganizationWithDryRunSendsNoDelete(t *testing
 	mockAPI(t, "orgs/acme/packages/npm/@acme%2Fui/versions", fields("2", "1.0.1", "", "2026-11-01T00:00:00Z")+fields("1", "1.0.0", "", "2026-01-01T00:00:00Z"))
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--dry-run", "--delete-package-versions", "--package", "@acme/ui", "--package-type", "npm", "--older-than", "30", "--org", "acme"}, &stdout, &stderr)
+	status := Run([]string{"--dry-run", "--delete-package-versions", "--package", "@acme/ui", "--package-type", "npm", "--older-than", "30", "--org", "acme"}, &stdout, &stderr)
 	want := "acme: npm @acme/ui version 1 1.0.0, tags -, created 2026-01-01, would delete\n" +
 		"total: would delete 1 package versions\n"
 	if status != 0 || stdout.String() != want {
@@ -108,7 +108,7 @@ func TestDeleteCodespacesDeletesStoppedCodespacesWithNoUnsavedWork(t *testing.T)
 	log := mockAccount(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-codespaces", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--delete-codespaces", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: codespace old-space, state Shutdown, last used 2026-09-01, deleted\n" +
 		"kept: 1 stopped codespaces with uncommitted or unpushed changes\n" +
 		"total: deleted 1 codespaces\n"
@@ -138,7 +138,7 @@ func TestAccountFlagsRefuseAMissingTargetOrPackage(t *testing.T) {
 		{[]string{"--delete-codespaces", "--org", "acme"}, "gh-sweep: --delete-codespaces deletes your own codespaces. Pass --mine, or name the repositories\n"},
 	} {
 		var stdout, stderr bytes.Buffer
-		if status := run(c.args, &stdout, &stderr); status != 2 || stdout.Len() != 0 || stderr.String() != c.want {
+		if status := Run(c.args, &stdout, &stderr); status != 2 || stdout.Len() != 0 || stderr.String() != c.want {
 			t.Fatalf("%v: status %d\nstdout\n%sstderr\n%s", c.args, status, stdout.String(), stderr.String())
 		}
 	}

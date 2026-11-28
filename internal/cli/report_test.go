@@ -1,6 +1,6 @@
 // id: ADR-0005
 
-package main
+package cli
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ func TestUsagePrintsTheStorageOfEachRepositoryAndSendsNoDeleteRequest(t *testing
 	log := mockInventory(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--usage", "other/lib", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--usage", "other/lib", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: size 3.5 MB (3670016 bytes), artifacts 1.5 MB, expired artifacts 512 KB, caches 2.0 MB, share 100.0%\n" +
 		"total: size 3.5 MB (3670016 bytes), artifacts 1.5 MB, expired artifacts 512 KB, caches 2.0 MB\n"
 	if status != 0 || stdout.String() != want || stderr.Len() != 0 {
@@ -28,7 +28,7 @@ func TestArtifactListPrintsEachArtifactAndReadsNoCache(t *testing.T) {
 	log := mockInventory(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--artifact-list", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--artifact-list", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: dist #101, size 1.0 MB, created 2026-11-12, expires 2027-02-10, status active\n" +
 		"acme/widgets: dist #100, size 512 KB, created 2026-11-10, expires 2026-11-20, status expired\n" +
 		"total: artifacts 2, size 1.5 MB, expired 1, expired size 512 KB\n"
@@ -49,7 +49,7 @@ func TestReportFlagsRefuseAnotherReportFlagAndArtifactListRefusesCachesOnly(t *t
 		{"--artifact-list", "--caches-only", "acme/widgets"},
 	} {
 		var stdout, stderr bytes.Buffer
-		if status := run(args, &stdout, &stderr); status != 2 || stdout.Len() != 0 || !strings.HasPrefix(stderr.String(), "gh-sweep: ") {
+		if status := Run(args, &stdout, &stderr); status != 2 || stdout.Len() != 0 || !strings.HasPrefix(stderr.String(), "gh-sweep: ") {
 			t.Fatalf("%v: status %d\nstdout\n%sstderr\n%s", args, status, stdout.String(), stderr.String())
 		}
 	}

@@ -1,6 +1,6 @@
 // id: ADR-0011
 
-package main
+package cli
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ func TestBillingPrintsTheActionsItemsOfTheLoggedInUser(t *testing.T) {
 			fields("Actions", "actions_storage", "gigabyte-hours", "350.5", "0.12", "0", "0.12"))
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--billing"}, &stdout, &stderr)
+	status := Run([]string{"--billing"}, &stdout, &stderr)
 	want := "rbe: Actions actions_linux, 1200 minutes, gross $9.60, discount $9.60, net $0.00\n" +
 		"rbe: Actions actions_storage, 350.5 gigabyte-hours, gross $0.12, discount $0.00, net $0.12\n" +
 		"total: items 2, gross $9.72, net $0.12\n"
@@ -34,7 +34,7 @@ func TestBillingOfAnOrganizationReadsTheOrganizationReport(t *testing.T) {
 	mockAPI(t, "organizations/acme/settings/billing/usage/summary", "")
 
 	var stdout, stderr bytes.Buffer
-	if status := run([]string{"--billing", "--org", "acme"}, &stdout, &stderr); status != 0 || stdout.String() != "total: items 0, gross $0.00, net $0.00\n" {
+	if status := Run([]string{"--billing", "--org", "acme"}, &stdout, &stderr); status != 0 || stdout.String() != "total: items 0, gross $0.00, net $0.00\n" {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}
 	calls := readLog(t, log)
@@ -48,7 +48,7 @@ func TestBillingPrintsTheErrorOfGitHubAndFails(t *testing.T) {
 	mockAPI(t, "users/other/settings/billing/usage/summary.fail", "HTTP 403: Resource not accessible by personal access token\n")
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--billing", "--user", "other"}, &stdout, &stderr)
+	status := Run([]string{"--billing", "--user", "other"}, &stdout, &stderr)
 	if status != 1 || stderr.String() != "gh-sweep: other: HTTP 403: Resource not accessible by personal access token\n" {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}
@@ -58,7 +58,7 @@ func TestBillingRefusesARepositoryArgument(t *testing.T) {
 	log := mockInventory(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--billing", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--billing", "acme/widgets"}, &stdout, &stderr)
 	if status != 2 || stderr.String() != "gh-sweep: --billing reads an account. Pass --user NAME, --org NAME, or no target for yourself\n" {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}

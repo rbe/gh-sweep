@@ -8,7 +8,18 @@ The first screen is a list of repositories. Check one or more and delete everyth
 
 Expired artifacts cannot be downloaded, but they still count against the Actions storage quota. A few large files usually hold most of the bytes, so deletes run largest-first. GitHub recalculates usage every 6–12 hours, which means a deploy can still report a full quota after the deletes have succeeded.
 
-`main.go` reads the flags and prints the summary. `internal/ui` is the checklist, `internal/project` is a repository, the artifacts and caches in it, and the lines of the summary, `internal/gh` calls the GitHub CLI, and `internal/format` turns sizes, times, and refs into the text on screen.
+The source code has this layout. [ADR-0016](docs/adr/ADR-0016.md) names which package may import which.
+
+| Directory | What it holds |
+| --- | --- |
+| `cmd/gh-sweep` | The program entry. It calls `internal/cli`. |
+| `internal/cli` | The flags, their checks, the reports, the settings change, and the run of an action. |
+| `internal/ui` | The checklist screen. |
+| `internal/sweep` | The actions of the flags, which the command line and the checklist share. |
+| `internal/gh` | The calls of the GitHub CLI. |
+| `internal/project` | A repository, its artifacts and caches, the filters, and the lines of the reports. |
+| `internal/format` | Sizes, times, and refs as text on screen. |
+| `test/mock-gh` | The fake `gh` that the tests put on `PATH`. |
 
 ## Requirements
 

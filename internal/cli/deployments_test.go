@@ -1,6 +1,6 @@
 // id: ADR-0013
 
-package main
+package cli
 
 import (
 	"bytes"
@@ -32,7 +32,7 @@ func TestDeleteDeploymentsKeepsTheNewestOfEachEnvironmentAndSetsInactiveFirst(t 
 	log := mockDeployments(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-deployments", "--older-than", "30", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--delete-deployments", "--older-than", "30", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: deployment 12, environment production, ref main, created 2026-10-01, deleted\n" +
 		"acme/widgets: deployment 11, environment production, ref v1, created 2026-05-01, deleted\n" +
 		"total: deleted 2 deployments\n"
@@ -51,7 +51,7 @@ func TestDeleteDeploymentsWithKeepAndDryRunSendsNoWrite(t *testing.T) {
 	log := mockDeployments(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--dry-run", "--delete-deployments", "--keep", "2", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--dry-run", "--delete-deployments", "--keep", "2", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: deployment 11, environment production, ref v1, created 2026-05-01, would delete\n" +
 		"total: would delete 1 deployments\n"
 	if status != 0 || stdout.String() != want {
@@ -66,7 +66,7 @@ func TestDeleteUnusedEnvironmentsDeletesEnvironmentsWithNoDeployment(t *testing.
 	log := mockDeployments(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--delete-unused-environments", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--delete-unused-environments", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: environment preview, deployments 0, newest deployment -, deleted\n" +
 		"acme/widgets: environment qa%1, deployments 0, newest deployment -, deleted\n" +
 		"total: deleted 2 environments\n"
@@ -83,7 +83,7 @@ func TestDeleteUnusedEnvironmentsWithOlderThanAlsoTakesAnEnvironmentWithOnlyOldD
 	mockDeployments(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--dry-run", "--delete-unused-environments", "--older-than", "180", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--dry-run", "--delete-unused-environments", "--older-than", "180", "acme/widgets"}, &stdout, &stderr)
 	if status != 0 || !strings.Contains(stdout.String(), "environment staging, deployments 1, newest deployment 2026-03-01, would delete\n") ||
 		strings.Contains(stdout.String(), "production") || !strings.HasSuffix(stdout.String(), "total: would delete 3 environments\n") {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
@@ -101,7 +101,7 @@ func TestDeploymentFlagsRefuseNoTargetAndNoFilter(t *testing.T) {
 		{[]string{"--delete-unused-environments"}, "gh-sweep: to use --delete-unused-environments, name the repositories, or pass --mine, --org, or --user\n"},
 	} {
 		var stdout, stderr bytes.Buffer
-		if status := run(c.args, &stdout, &stderr); status != 2 || stderr.String() != c.want {
+		if status := Run(c.args, &stdout, &stderr); status != 2 || stderr.String() != c.want {
 			t.Fatalf("%v: status %d\nstdout\n%sstderr\n%s", c.args, status, stdout.String(), stderr.String())
 		}
 	}

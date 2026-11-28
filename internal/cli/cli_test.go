@@ -1,6 +1,6 @@
 // id: ADR-0003
 
-package main
+package cli
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ func TestSummaryPrintsTheLinesAndSendsNoDeleteRequest(t *testing.T) {
 	t.Setenv("GH_MOCK_REPOS", "acme/widgets\nother/lib")
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--summary", "acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--summary", "acme/widgets"}, &stdout, &stderr)
 	want := "acme/widgets: artifacts 2, caches 1, size 3.5 MB\n" +
 		"total: artifacts 2, caches 1, size 3.5 MB\n"
 	if status != 0 || stdout.String() != want || stderr.Len() != 0 {
@@ -33,10 +33,10 @@ func TestSummaryWithDryRunBehavesAsSummary(t *testing.T) {
 	log := mockInventory(t)
 
 	var alone, both, stderr bytes.Buffer
-	if status := run([]string{"--summary", "acme/widgets"}, &alone, &stderr); status != 0 {
+	if status := Run([]string{"--summary", "acme/widgets"}, &alone, &stderr); status != 0 {
 		t.Fatalf("status %d\n%s", status, stderr.String())
 	}
-	if status := run([]string{"--summary", "--dry-run", "acme/widgets"}, &both, &stderr); status != 0 {
+	if status := Run([]string{"--summary", "--dry-run", "acme/widgets"}, &both, &stderr); status != 0 {
 		t.Fatalf("status %d\n%s", status, stderr.String())
 	}
 	if both.String() != alone.String() || !strings.HasSuffix(both.String(), "size 3.5 MB\n") {
@@ -52,7 +52,7 @@ func TestSummaryWithNoArgumentCoversTheLoggedInUserAndLeavesOutAnEmptyRepository
 	t.Setenv("GH_MOCK_REPOS", "acme/widgets\nother/lib")
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--summary"}, &stdout, &stderr)
+	status := Run([]string{"--summary"}, &stdout, &stderr)
 	want := "acme/widgets: artifacts 2, caches 1, size 3.5 MB\n" +
 		"total: artifacts 2, caches 1, size 3.5 MB\n"
 	if status != 0 || stdout.String() != want || stderr.Len() != 0 {
@@ -70,7 +70,7 @@ func TestSummaryPrintsOnlyTheTotalWhenNoRepositoryHasAnEntry(t *testing.T) {
 	mockInventory(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--summary", "other/lib"}, &stdout, &stderr)
+	status := Run([]string{"--summary", "other/lib"}, &stdout, &stderr)
 	if status != 0 || stdout.String() != "total: artifacts 0, caches 0, size 0 B\n" || stderr.Len() != 0 {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}
@@ -85,7 +85,7 @@ func TestSummarySaysWhenGHGaveOnlyTheFirstRepositories(t *testing.T) {
 	t.Setenv("GH_MOCK_REPOS", strings.Join(names, "\n"))
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--summary"}, &stdout, &stderr)
+	status := Run([]string{"--summary"}, &stdout, &stderr)
 	lines := strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")
 	if status != 0 || len(lines) != 201 || lines[200] != "total: artifacts 400, caches 200, size 700 MB" {
 		t.Fatalf("status %d, %d lines, last %q", status, len(lines), lines[len(lines)-1])
@@ -99,7 +99,7 @@ func TestSummaryCountsARepeatedRepositoryOnce(t *testing.T) {
 	mockInventory(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--summary", "acme/widgets", "github.com/acme/widgets"}, &stdout, &stderr)
+	status := Run([]string{"--summary", "acme/widgets", "github.com/acme/widgets"}, &stdout, &stderr)
 	if status != 0 || !strings.HasSuffix(stdout.String(), "\ntotal: artifacts 2, caches 1, size 3.5 MB\n") {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}
@@ -109,7 +109,7 @@ func TestSummaryRefusesANameThatIsNotARepository(t *testing.T) {
 	log := mockInventory(t)
 
 	var stdout, stderr bytes.Buffer
-	status := run([]string{"--summary", "not a repository"}, &stdout, &stderr)
+	status := Run([]string{"--summary", "not a repository"}, &stdout, &stderr)
 	if status == 0 || stdout.Len() != 0 || stderr.String() != "gh-sweep: not a repository name: not a repository\n" {
 		t.Fatalf("status %d\nstdout\n%sstderr\n%s", status, stdout.String(), stderr.String())
 	}
@@ -187,7 +187,7 @@ func mockGH(t *testing.T) string {
 	if !ok {
 		t.Fatal("caller")
 	}
-	p, err := filepath.Abs(filepath.Join(filepath.Dir(file), "test", "mock-gh"))
+	p, err := filepath.Abs(filepath.Join(filepath.Dir(file), "..", "..", "test", "mock-gh"))
 	if err != nil {
 		t.Fatal(err)
 	}
