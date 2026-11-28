@@ -12,8 +12,21 @@ type Filter struct {
 	OlderThan int
 	Branch    string
 	Status    string
+	KeyPrefix string
 	Keep      int
 	Untagged  bool
+}
+
+// Total is what a job counted in one repository or in all of them: the
+// entries and their bytes.
+type Total struct {
+	Count int
+	Bytes int64
+}
+
+// Add gives the sum of two totals.
+func (t Total) Add(o Total) Total {
+	return Total{Count: t.Count + o.Count, Bytes: t.Bytes + o.Bytes}
 }
 
 // OlderThanCutoff is true when t is more than OlderThan days before now.
