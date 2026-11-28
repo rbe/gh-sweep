@@ -16,17 +16,20 @@ import (
 // now is the clock of the age filters. A test replaces it.
 var now = time.Now
 
-// job is one write flag that the tool runs in each named repository: its
-// flag, the verb and the noun of its total line, the filter flags it reads,
-// and the function that does it in one repository. The function gives its
-// lines, the number of entries it changed or would change, and an error.
+// job is one flag that the tool runs in each named repository: its flag,
+// the verb and the noun of its total line, the filter flags it reads, and
+// the function that does it in one repository. The function gives its
+// lines, the entries it changed, would change, or read, and an error. A
+// read-only job has a total function and needs no named target.
 type job struct {
 	flag        string
 	verb        string
 	noun        string
 	filters     []string
 	needsFilter bool
-	each        func(p project.Project, f project.Filter, dryRun bool) ([]string, int, error)
+	readOnly    bool
+	total       func(project.Total, bool) string
+	each        func(p project.Project, f project.Filter, dryRun bool) ([]string, project.Total, error)
 }
 
 // jobFlags holds the write flags and the filter flags of one command line.
@@ -39,14 +42,18 @@ type jobFlags struct {
 }
 
 // filterFlags are the names of the filter flags.
-var filterFlags = []string{"older-than", "branch", "status", "keep", "untagged"}
+var filterFlags = []string{"older-than", "branch", "status", "key-prefix", "keep", "untagged"}
 
 // registerJobs adds the write flags of the jobs and the filter flags.
 func registerJobs(fs *flag.FlagSet, jobs []job) *jobFlags {
 	jf := &jobFlags{set: map[string]*bool{}, jobs: map[string]job{}, fs: fs}
 	for _, j := range jobs {
 		name := strings.TrimPrefix(j.flag, "--")
-		jf.set[name] = fs.Bool(name, false, j.verb+" "+j.noun+", then exit")
+		usage := j.verb + " " + j.noun + ", then exit"
+		if j.readOnly {
+			usage = "print the " + j.noun + " of each repository, then exit"
+		}
+		jf.set[name] = fs.Bool(name, false, usage)
 		jf.order = append(jf.order, name)
 		jf.jobs[name] = j
 	}
@@ -68,6 +75,7 @@ func registerJobs(fs *flag.FlagSet, jobs []job) *jobFlags {
 		jf.filter.Keep = n
 		return nil
 	})
+	fs.StringVar(&jf.filter.KeyPrefix, "key-prefix", "", "select only caches whose key starts with this text")
 	fs.BoolVar(&jf.filter.Untagged, "untagged", false, "select only untagged package versions")
 	return jf
 }
@@ -145,19 +153,24 @@ func runJob(o ui.Options, j *job, f project.Filter, stdout, stderr io.Writer) er
 	if err != nil {
 		return err
 	}
-	failed, total := 0, 0
+	failed := 0
+	var total project.Total
 	for _, p := range repositories {
-		lines, n, err := j.each(p, f, o.DryRun)
+		lines, t, err := j.each(p, f, o.DryRun)
 		for _, line := range lines {
 			fmt.Fprintln(stdout, line)
 		}
-		total += n
+		total = total.Add(t)
 		if err != nil {
 			fmt.Fprintf(stderr, "gh-sweep: %s: %s\n", p.NWO, err)
 			failed++
 		}
 	}
-	fmt.Fprintln(stdout, project.TotalLine(j.verb, j.noun, total, o.DryRun))
+	if j.total != nil {
+		fmt.Fprintln(stdout, j.total(total, o.DryRun))
+	} else {
+		fmt.Fprintln(stdout, project.TotalLine(j.verb, j.noun, total.Count, o.DryRun))
+	}
 	if note != "" {
 		fmt.Fprintf(stderr, "gh-sweep: %s\n", note)
 	}

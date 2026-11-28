@@ -28,6 +28,8 @@ gh-sweep uses the token of `gh`. A fine-grained personal access token works for 
 | Checklist, `--summary`, `--usage`, `--artifact-list` | Repository: Actions read, and write to delete | `repo` |
 | `--retention-days`, `--actions-pr-approval` | Repository: Administration read and write | `repo`, and admin access to the repository |
 | `--delete-runs`, `--delete-run-logs` | Repository: Actions read and write | `repo` |
+| `--delete-caches` | Repository: Actions read and write | `repo` |
+| `--cache-usage` | Repository: Actions read, and Administration read for the retention limit | `repo`, and `admin:repository` for both limits |
 
 Each fine-grained token also has Repository: Metadata read. The table comes from the GitHub data files `fine-grained-pat.json` and `fine-grained-pat-permissions.json` (repository github/docs) and from the REST API description (repository github/rest-api-description), read on 2026-11-28. The tests of this project do not call GitHub, so no test proves the table. `gh repo list`, which gh-sweep runs when no repository is named, uses the GraphQL API of GitHub. It is expected to list only the repositories that the fine-grained token can access, but this is not tested.
 
@@ -168,6 +170,36 @@ The filters select the runs. Give at least one:
 - `--status VALUE` takes runs with that status or conclusion, such as `failure`, `cancelled`, or `success`.
 
 GitHub gives at most 1,000 runs for one call with `--branch` or `--status`. Run the flag again to take more. With `--dry-run` the tool deletes nothing and prints `would delete`. Name the repositories, or pass `--mine`, `--org`, or `--user`. With none of them, the tool changes nothing and exits with an error. If one repository fails, the tool prints the error, goes on with the next repository, and exits with status 1. A deleted run cannot be restored.
+
+### Caches
+
+```bash
+gh-sweep --dry-run --delete-caches --key-prefix node- rbe/erechnung
+gh-sweep --delete-caches --branch dependabot/npm --older-than 7 --mine
+gh-sweep --cache-usage rbe/erechnung other/app
+```
+
+`--delete-caches` deletes the caches that the filters select, prints one line for each cache, then a total line, and exits. Give at least one filter:
+
+- `--key-prefix TEXT` takes caches whose key starts with TEXT.
+- `--branch NAME` takes caches of the ref `refs/heads/NAME`.
+- `--older-than N` takes caches last used more than N days ago.
+
+```text
+rbe/erechnung: cache 7 "node-Linux-abc", ref main, size 2.0 MB, last used 2026-11-13, deleted
+total: deleted 1 caches, size 2.0 MB
+```
+
+The tool deletes each cache by its id, so a filter on the branch or the age keeps the caches of the same key on other refs. `--dry-run`, the guard against an empty target, and errors behave as for `--delete-runs`.
+
+`--cache-usage` prints one line for each repository with the number and the size of the active caches, the storage limit, and the retention limit, then a total line. It deletes nothing and works with no repository argument:
+
+```text
+rbe/erechnung: caches 3, size 2.0 MB (2097152 bytes), storage limit 10 GB, retention limit 7 days
+total: caches 3, size 2.0 MB (2097152 bytes)
+```
+
+The tool reads the limits from `actions/cache/storage-limit` and `actions/cache/retention-limit`. GitHub refuses the retention limit to a token without admin access. The line then says `unknown`, standard error gives the reason, and the exit status is 1.
 
 ### Projects
 

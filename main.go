@@ -257,7 +257,7 @@ func parseCLI(args []string) (cli, error) {
 
 // allJobs are the write flags that run in each named repository.
 func allJobs() []job {
-	return append([]job{}, runJobs...)
+	return append(append([]job{}, runJobs...), cacheJobs...)
 }
 
 // checkJob refuses a write flag together with a report flag or a settings
@@ -270,8 +270,10 @@ func checkJob(j *job, f project.Filter, chosen *report, c project.SettingsChange
 	if chosen != nil || !c.Empty() {
 		return fmt.Errorf("%s does not combine with a report flag or a settings flag", j.flag)
 	}
-	if err := checkWriteTarget(j.flag, named); err != nil {
-		return err
+	if !j.readOnly {
+		if err := checkWriteTarget(j.flag, named); err != nil {
+			return err
+		}
 	}
 	return project.CheckRunStatus(f.Status)
 }
@@ -434,11 +436,14 @@ Options:
                        allow or deny that GitHub Actions creates and approves pull requests, then exit
   -delete-runs         delete completed workflow runs and their logs, then exit
   -delete-run-logs     delete the logs of completed workflow runs and keep the runs, then exit
+  -delete-caches       delete the caches that the filters select, then exit
+  -cache-usage         print the cache usage and the cache limits of each repository, then exit
 
 Filters of the write flags:
   -older-than n        only entries more than n days old
-  -branch name         only workflow runs of this branch
+  -branch name         only workflow runs or caches of this branch
   -status value        only workflow runs with this status or conclusion, such as failure
+  -key-prefix text     only caches whose key starts with this text
   -h                   show this help
 
 Project keys:
