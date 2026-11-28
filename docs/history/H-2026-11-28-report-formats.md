@@ -3,7 +3,7 @@ id: H-2026-11-28-report-formats
 title: The reports write text, JSON, or CSV to standard output or to a file
 status: started
 adrs: [ADR-0017]
-skills: [r-plan, r-security, r-privacy, r-ux-ui-design, r-api-design, r-observability, r-performance, r-develop, r-go]
+skills: [r-plan, r-security, r-privacy, r-ux-ui-design, r-api-design, r-observability, r-performance, r-develop, r-go, r-review, r-release]
 roadmap: [W-14]
 proposals: []
 ---
@@ -35,8 +35,19 @@ performance: no new gh call. The report is built in memory once, as before.
 
 ## Review
 
-Not invoked yet.
+`make gates TOOLS=host` passed in the cloud session with all six gates: `make editorconfig`, `make format`, `make lint`, `make test`, `make integration`, and `make coverage`. `make integration` runs `true` in this project. The diff coverage is 85 percent: 170 of 200 changed lines. `make links-check` passed. `make project-report` lists [ADR-0002](../adr/ADR-0002.md) as the only id with no test. [ADR-0002](../adr/ADR-0002.md) is a rule about how to work, so it needs no test. Every new test names [ADR-0017](../adr/ADR-0017.md) in its `id:` line. The CI workflow runs only `make` targets.
+
+security: the only new input is the path of `--output`. The tool writes that file with mode 0644 after the read and runs no command with it. No secret is in the diff.
+privacy: the JSON and the CSV hold the same data as the text report. No personal data is added.
+ux-ui-design: no screen changed. The help text has two new lines.
+api-design: not HTTP, not a module. The flags and the keys match [ADR-0017](../adr/ADR-0017.md), and tests read the exact JSON of the summary and the exact CSV of the usage and the artifact list.
+observability: an unknown format and a missing report flag exit with status 2. A file that cannot be written exits with status 1. Errors keep the prefix `gh-sweep: `.
+performance: no new gh call. The report is built once in memory.
+
+Finding, fixed in this change: the CSV header of the artifact list had the column `status` twice. The extra column is now `result`.
+
+Left alone: `--cache-usage`, `--billing`, `--stale-list`, and the screens `u` and `i` keep text only. Roadmap row [W-1](../ROADMAP.md#w-1) still holds: a flag after a repository name is not read, so the README puts `--format` and `--output` before the names.
 
 ## Release
 
-Not invoked yet.
+Not invoked: the owner merges the pull request.
