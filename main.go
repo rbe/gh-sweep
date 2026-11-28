@@ -261,7 +261,8 @@ func allJobs() []job {
 	jobs := append(append([]job{}, runJobs...), cacheJobs...)
 	jobs = append(jobs, accountJobs...)
 	jobs = append(jobs, billingJob, branchJob)
-	return append(jobs, deploymentJobs...)
+	jobs = append(jobs, deploymentJobs...)
+	return append(jobs, staleJobs...)
 }
 
 // checkJob refuses a write flag together with a report flag or a settings
@@ -459,6 +460,8 @@ Options:
   -delete-deployments  delete old deployments and keep the newest of each environment, then exit
   -delete-unused-environments
                        delete environments with no deployment, then exit
+  -stale-list          print each repository with its last push and disk usage, oldest first, then exit
+  -archive             archive the named repositories, then exit
 
 Filters of the write flags:
   -older-than n        only entries more than n days old

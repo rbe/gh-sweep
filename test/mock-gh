@@ -13,6 +13,21 @@ if [[ ${1:-} == auth ]]; then
   exit 0
 fi
 
+# The repository states of --stale-list and --archive.
+if [[ ${1:-} == repo && " $* " == *" nameWithOwner,pushedAt,diskUsage,isArchived "* ]]; then
+  if [[ ${2:-} == list ]]; then
+    cat "$GH_MOCK_DIR/repo_list"
+  else
+    file="$GH_MOCK_DIR/repo_view_${3//\//_}"
+    if [[ ! -f $file ]]; then
+      printf 'GraphQL: Could not resolve to a Repository with the name %s.\n' "$3" >&2
+      exit 1
+    fi
+    cat "$file"
+  fi
+  exit 0
+fi
+
 if [[ ${1:-} == repo && ${2:-} == list ]]; then
   printf '%s\n' "${GH_MOCK_REPOS:-acme/widgets}"
   exit 0
