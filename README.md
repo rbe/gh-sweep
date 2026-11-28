@@ -15,10 +15,30 @@ Expired artifacts cannot be downloaded, but they still count against the Actions
 - macOS or Linux, with GNU make (the `make` that ships with both)
 - Podman, or Docker (`CONTAINER_ENGINE=docker`)
 - [GitHub CLI](https://cli.github.com) 2.40 or newer, logged in, when you run the tool on the host
-- `repo` scope if the repository is private, and to delete caches
-- `repo` scope and admin access to the repository, to change its settings with `--retention-days` or `--actions-pr-approval`
+- a token with the permissions of the table in [Token permissions](#token-permissions)
 
 Go does not need to be installed. `make build` and `make test` compile inside `docker.io/library/golang:1.22-bookworm` and write a binary for the machine you are on. The Go cache is kept in the container volumes `gh-sweep-gocache` and `gh-sweep-gomod`, not in the project directory. `make clean` removes `bin/`, those volumes, and a leftover `.cache` from an older build. `make clean FORCE=1` also force-removes the `gh-sweep` image and any containers still using it. On macOS that directory belongs to the container user, so `make clean` deletes it from inside the container.
+
+## Token permissions
+
+gh-sweep uses the token of `gh`. A fine-grained personal access token works for each flag in the table. Give the token access to the repositories you name. Log in with it as `gh auth login --with-token < token.txt`, or set `GH_TOKEN`. The classic scope is the fallback for a classic token or for the token of `gh auth login`.
+
+| What | Fine-grained permission | Classic scope |
+| --- | --- | --- |
+| Checklist, `--summary`, `--usage`, `--artifact-list` | Repository: Actions read, and write to delete | `repo` |
+| `--retention-days`, `--actions-pr-approval` | Repository: Administration read and write | `repo`, and admin access to the repository |
+| `--delete-runs`, `--delete-run-logs` | Repository: Actions read and write | `repo` |
+| `--delete-caches` | Repository: Actions read and write | `repo` |
+| `--cache-usage` | Repository: Actions read, and Administration read for the retention limit | `repo`, and `admin:repository` for both limits |
+| `--delete-releases`, `--delete-release-assets` | Repository: Contents read and write | `repo` |
+| `--delete-package-versions` | **Does not work with a fine-grained token.** Use a classic token. | `read:packages` and `delete:packages` |
+| `--delete-codespaces` | Repository: Codespaces read and write | `codespace` |
+| `--billing` | User: Plan read. With `--org`: Organization: Administration read | The REST API description names no scope. |
+| `--delete-merged-branches` | Repository: Contents read and write, Pull requests read | `repo` |
+| `--delete-deployments` | Repository: Deployments read and write | `repo`, or `repo_deployment` for the deployment calls |
+| `--delete-unused-environments` | Repository: Actions read, Deployments read, Administration write | `repo` |
+
+Each fine-grained token also has Repository: Metadata read. The REST endpoints of GitHub Packages are not in the list of endpoints that accept a fine-grained token, so `--delete-package-versions` needs a classic token. With the token of `gh auth login`, add the scopes with `gh auth refresh -s read:packages,delete:packages`. The table comes from the GitHub data files `fine-grained-pat.json` and `fine-grained-pat-permissions.json` (repository github/docs) and from the REST API description (repository github/rest-api-description), read on 2026-11-28. The tests of this project do not call GitHub, so no test proves the table. `gh repo list`, which gh-sweep runs when no repository is named, uses the GraphQL API of GitHub. It is expected to list only the repositories that the fine-grained token can access, but this is not tested.
 
 ## Install
 
@@ -135,6 +155,143 @@ rbe/erechnung: actions-pr-approval allow, set deny
 
 Name the repositories, or pass `--mine`, `--org`, or `--user`. With none of them, the tool changes nothing and exits with an error. Put the flags before the repository names. A settings flag together with `--summary`, `--usage`, or `--artifact-list` is an error. If one repository fails, for example because you are not an admin there, the tool prints the error, goes on with the next repository, and exits with status 1. An organization or enterprise policy can block either setting, and GitHub then refuses the change.
 
+### Workflow runs
+
+```bash
+gh-sweep --dry-run --delete-runs --older-than 90 rbe/erechnung
+gh-sweep --delete-runs --status failure --branch main rbe/erechnung
+gh-sweep --delete-run-logs --older-than 30 --mine
+```
+
+`--delete-runs` deletes workflow runs. GitHub deletes the logs of a run together with the run. `--delete-run-logs` deletes only the logs and keeps the runs. Both flags take only runs with the status `completed`, so a run that still runs or waits stays. They print one line for each run, then a total line, and exit:
+
+```text
+rbe/erechnung: run 1234567 "CI", branch main, conclusion failure, created 2026-08-01, deleted
+total: deleted 1 workflow runs
+```
+
+The filters select the runs. Give at least one:
+
+- `--older-than N` takes runs created more than N days ago.
+- `--branch NAME` takes runs of that branch.
+- `--status VALUE` takes runs with that status or conclusion, such as `failure`, `cancelled`, or `success`.
+
+GitHub gives at most 1,000 runs for one call with `--branch` or `--status`. Run the flag again to take more. With `--dry-run` the tool deletes nothing and prints `would delete`. Name the repositories, or pass `--mine`, `--org`, or `--user`. With none of them, the tool changes nothing and exits with an error. If one repository fails, the tool prints the error, goes on with the next repository, and exits with status 1. A deleted run cannot be restored.
+
+### Caches
+
+```bash
+gh-sweep --dry-run --delete-caches --key-prefix node- rbe/erechnung
+gh-sweep --delete-caches --branch dependabot/npm --older-than 7 --mine
+gh-sweep --cache-usage rbe/erechnung other/app
+```
+
+`--delete-caches` deletes the caches that the filters select, prints one line for each cache, then a total line, and exits. Give at least one filter:
+
+- `--key-prefix TEXT` takes caches whose key starts with TEXT.
+- `--branch NAME` takes caches of the ref `refs/heads/NAME`.
+- `--older-than N` takes caches last used more than N days ago.
+
+```text
+rbe/erechnung: cache 7 "node-Linux-abc", ref main, size 2.0 MB, last used 2026-11-13, deleted
+total: deleted 1 caches, size 2.0 MB
+```
+
+The tool deletes each cache by its id, so a filter on the branch or the age keeps the caches of the same key on other refs. `--dry-run`, the guard against an empty target, and errors behave as for `--delete-runs`.
+
+`--cache-usage` prints one line for each repository with the number and the size of the active caches, the storage limit, and the retention limit, then a total line. It deletes nothing and works with no repository argument:
+
+```text
+rbe/erechnung: caches 3, size 2.0 MB (2097152 bytes), storage limit 10 GB, retention limit 7 days
+total: caches 3, size 2.0 MB (2097152 bytes)
+```
+
+The tool reads the limits from `actions/cache/storage-limit` and `actions/cache/retention-limit`. GitHub refuses the retention limit to a token without admin access. The line then says `unknown`, standard error gives the reason, and the exit status is 1.
+
+### Releases, packages, and codespaces
+
+```bash
+gh-sweep --dry-run --delete-releases --keep 5 rbe/erechnung
+gh-sweep --delete-release-assets --older-than 180 rbe/erechnung
+gh-sweep --dry-run --delete-package-versions --package gh-sweep --untagged --mine
+gh-sweep --delete-package-versions --package @acme/ui --package-type npm --keep 10 --org acme
+gh-sweep --delete-codespaces --mine
+```
+
+`--delete-releases` deletes releases. The Git tags stay. `--delete-release-assets` deletes the files of releases and keeps the releases. An immutable release keeps its files, because GitHub refuses the delete. Both flags need `--keep N`, which keeps the newest N releases, or `--older-than N`, which takes releases created more than N days ago:
+
+```text
+rbe/erechnung: release 1234 "v1.0.0", tag v1.0.0, created 2026-01-01, assets 2, size 3.0 MB, deleted
+total: deleted 1 releases, size 3.0 MB
+```
+
+`--delete-package-versions` deletes versions of one package. `--package NAME` names the package, and `--package-type` is `container` (the default), `npm`, `maven`, `rubygems`, `docker`, or `nuget`. Pass `--mine` for your own package or `--org NAME` for a package of an organization. Give at least one of `--untagged`, `--older-than N`, and `--keep N`. The newest version always stays. GitHub refuses to delete a version of a public package with more than 5,000 downloads.
+
+Warning: a multi-platform container image is a tagged index plus one untagged version for each platform. `--untagged` takes those platform versions too, and the tagged image then no longer pulls. Run `--dry-run` first, and use `--untagged` only for a package of single-platform images.
+
+`--delete-codespaces` deletes your stopped codespaces (state `Shutdown`). A codespace with uncommitted or unpushed changes stays, and a `kept:` line counts it. Pass `--mine` for all your codespaces, or name the repositories. `--older-than N` takes only codespaces last used more than N days ago. `--org` and `--user` are an error, because GitHub lists only the codespaces of the logged-in user.
+
+`--dry-run` and the errors behave as for `--delete-runs`. A deleted release, package version, or codespace cannot be restored.
+
+### Billed Actions usage
+
+```bash
+gh-sweep --billing                    # the logged-in user
+gh-sweep --billing --org my-org
+```
+
+`--billing` prints the GitHub Actions items of the billing usage summary of this month, then a total line, and exits. It reads `users/NAME/settings/billing/usage/summary?product=Actions`, or `organizations/NAME/settings/billing/usage/summary?product=Actions` with `--org`. `--user NAME` reads another user, and GitHub allows that only for your own account. Each line is one SKU, such as the minutes of Linux runners or the Actions storage:
+
+```text
+rbe: Actions actions_linux, 1200 minutes, gross $9.60, discount $9.60, net $0.00
+total: items 1, gross $9.60, net $0.00
+```
+
+The amounts are the US dollars that GitHub reports. The net amount is what GitHub bills after the included usage. GitHub marks this endpoint as public preview, and it gives data of the last 24 months only. A repository argument is an error, because GitHub bills an account.
+
+### Merged branches
+
+```bash
+gh-sweep --dry-run --delete-merged-branches rbe/erechnung
+gh-sweep --delete-merged-branches --mine
+```
+
+`--delete-merged-branches` deletes each branch whose pull request is merged or closed, prints one line for each branch, then a total line, and exits:
+
+```text
+rbe/erechnung: branch feature/login, pull request #12 merged, deleted
+rbe/erechnung: branch try-ci, pull request #15 closed, deleted
+total: deleted 2 branches
+```
+
+A branch stays when:
+
+- it is the default branch, or a branch protection rule covers it,
+- an open pull request has it as head or as base,
+- its head commit differs from the head commit of the closed pull request, because it then holds commits that no pull request has,
+- the pull request came from a fork. The tool deletes only branches of the repository itself.
+
+The tool reads every pull request of the repository, so a repository with many pull requests takes one call for each 100. `--dry-run`, the guard against an empty target, and the errors behave as for `--delete-runs`. A deleted branch can be restored from the page of its pull request on GitHub.
+
+### Deployments and environments
+
+```bash
+gh-sweep --dry-run --delete-deployments --keep 3 rbe/erechnung
+gh-sweep --delete-deployments --older-than 90 --mine
+gh-sweep --dry-run --delete-unused-environments rbe/erechnung
+```
+
+`--delete-deployments` deletes old deployments. In each environment the newest deployment always stays, because it can be the active one. `--keep N` keeps the newest N of each environment, and `--older-than N` takes deployments created more than N days ago. Give at least one. GitHub deletes only an inactive deployment when a repository has more than one, so the tool first sets each deployment inactive and then deletes it:
+
+```text
+rbe/erechnung: deployment 1234, environment production, ref main, created 2026-05-01, deleted
+total: deleted 1 deployments
+```
+
+`--delete-unused-environments` deletes each environment that has no deployment. With `--older-than N` it also deletes an environment whose newest deployment is more than N days old. GitHub deletes the secrets, the variables, and the protection rules of the environment with it, and they cannot be restored. Run `--dry-run` first.
+
+`--dry-run`, the guard against an empty target, and the errors behave as for `--delete-runs`.
+
 ### Projects
 
 | Key | Action |
@@ -194,6 +351,37 @@ make test
 ```
 
 The tests run inside the Go container. `make coverage` reports the lines a change touched, and `make test-changed` then runs the tests of the packages that cover the change.
+
+A workflow run, or only its logs:
+
+```bash
+gh api -X DELETE repos/OWNER/REPO/actions/runs/RUN_ID
+gh api -X DELETE repos/OWNER/REPO/actions/runs/RUN_ID/logs
+```
+
+A release, a release asset, a package version, or a codespace:
+
+```bash
+gh api -X DELETE repos/OWNER/REPO/releases/RELEASE_ID
+gh api -X DELETE repos/OWNER/REPO/releases/assets/ASSET_ID
+gh api -X DELETE user/packages/TYPE/NAME/versions/VERSION_ID
+gh api -X DELETE orgs/ORG/packages/TYPE/NAME/versions/VERSION_ID
+gh api -X DELETE user/codespaces/CODESPACE_NAME
+```
+
+A branch:
+
+```bash
+gh api -X DELETE repos/OWNER/REPO/git/refs/heads/BRANCH
+```
+
+A deployment, and an environment:
+
+```bash
+gh api -X POST repos/OWNER/REPO/deployments/DEPLOYMENT_ID/statuses -f state=inactive
+gh api -X DELETE repos/OWNER/REPO/deployments/DEPLOYMENT_ID
+gh api -X DELETE repos/OWNER/REPO/environments/ENVIRONMENT
+```
 
 ## What gets changed
 

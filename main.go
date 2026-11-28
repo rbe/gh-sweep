@@ -27,6 +27,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	switch {
+	case cmd.job != nil:
+		err = runJob(cmd.options, cmd.job, cmd.filter, stdout, stderr)
 	case !cmd.settings.Empty():
 		err = applySettings(cmd.options, cmd.settings, stdout, stderr)
 	case cmd.report != nil:
@@ -155,6 +157,8 @@ type cli struct {
 	options  ui.Options
 	report   *report
 	settings project.SettingsChange
+	job      *job
+	filter   project.Filter
 }
 
 func parseCLI(args []string) (cli, error) {
@@ -189,6 +193,7 @@ func parseCLI(args []string) (cli, error) {
 		}
 		return fmt.Errorf("give allow or deny")
 	})
+	jobs := registerJobs(fs, allJobs())
 	var repos []string
 	fs.Func("repo", "repository owner/name (repeatable)", func(s string) error {
 		repos = append(repos, s)
@@ -217,7 +222,16 @@ func parseCLI(args []string) (cli, error) {
 	if err != nil {
 		return cli{}, err
 	}
-	if err := checkSettingsTarget(settings, chosen, len(repos) > 0 || *org != "" || *user != "" || *mine); err != nil {
+	named := len(repos) > 0 || *org != "" || *user != "" || *mine
+	if err := checkSettingsTarget(settings, chosen, named); err != nil {
+		return cli{}, err
+	}
+	j, err := jobs.choose()
+	if err != nil {
+		return cli{}, err
+	}
+	o := ui.Options{Repos: repos, Org: *org, User: *user, Mine: *mine}
+	if err := checkJob(j, jobs.filter, o, chosen, settings, named); err != nil {
 		return cli{}, err
 	}
 	wantCache := !*artOnly
@@ -237,7 +251,40 @@ func parseCLI(args []string) (cli, error) {
 		},
 		report:   chosen,
 		settings: settings,
+		job:      j,
+		filter:   jobs.filter,
 	}, nil
+}
+
+// allJobs are the write flags that run in each named repository.
+func allJobs() []job {
+	jobs := append(append([]job{}, runJobs...), cacheJobs...)
+	jobs = append(jobs, accountJobs...)
+	jobs = append(jobs, billingJob, branchJob)
+	return append(jobs, deploymentJobs...)
+}
+
+// checkJob refuses a write flag together with a report flag or a settings
+// flag, a write flag with no named target, and a status that GitHub does
+// not accept.
+func checkJob(j *job, f project.Filter, o ui.Options, chosen *report, c project.SettingsChange, named bool) error {
+	if j == nil {
+		return nil
+	}
+	if chosen != nil || !c.Empty() {
+		return fmt.Errorf("%s does not combine with a report flag or a settings flag", j.flag)
+	}
+	switch {
+	case j.target != nil:
+		if err := j.target(o, f); err != nil {
+			return err
+		}
+	case !j.readOnly:
+		if err := checkWriteTarget(j.flag, named); err != nil {
+			return err
+		}
+	}
+	return project.CheckRunStatus(f.Status)
 }
 
 // checkSettingsTarget refuses a settings change together with a report, and
@@ -396,6 +443,32 @@ Options:
   -retention-days n    set the artifact and log retention of each repository to n days, then exit
   -actions-pr-approval allow|deny
                        allow or deny that GitHub Actions creates and approves pull requests, then exit
+  -delete-runs         delete completed workflow runs and their logs, then exit
+  -delete-run-logs     delete the logs of completed workflow runs and keep the runs, then exit
+  -delete-caches       delete the caches that the filters select, then exit
+  -cache-usage         print the cache usage and the cache limits of each repository, then exit
+  -delete-releases     delete the releases that the filters select and keep their tags, then exit
+  -delete-release-assets
+                       delete the assets of the releases that the filters select, then exit
+  -delete-package-versions
+                       delete versions of the package that -package names, then exit
+  -delete-codespaces   delete your stopped codespaces with no unsaved work, then exit
+  -billing             print the billed GitHub Actions usage of this month, then exit
+  -delete-merged-branches
+                       delete branches whose pull request is merged or closed, then exit
+  -delete-deployments  delete old deployments and keep the newest of each environment, then exit
+  -delete-unused-environments
+                       delete environments with no deployment, then exit
+
+Filters of the write flags:
+  -older-than n        only entries more than n days old
+  -branch name         only workflow runs or caches of this branch
+  -status value        only workflow runs with this status or conclusion, such as failure
+  -key-prefix text     only caches whose key starts with this text
+  -keep n              keep the newest n releases, package versions, or deployments of each environment
+  -untagged            only package versions with no tag
+  -package name        the package of -delete-package-versions
+  -package-type type   container (the default), npm, maven, rubygems, docker, or nuget
   -h                   show this help
 
 Project keys:
