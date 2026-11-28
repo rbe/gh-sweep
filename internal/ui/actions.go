@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -172,6 +173,9 @@ func (m model) chooseAction(a sweep.Action) (model, tea.Cmd) {
 		in.Blur()
 		if name == "package-type" {
 			in.SetValue("container")
+		}
+		if name == "retention-days" {
+			in.SetValue(strconv.Itoa(project.Prefs().RetentionDays))
 		}
 		m.act.fields = append(m.act.fields, filterField{name: name, input: in})
 	}
@@ -419,7 +423,7 @@ func (m model) confirmAction() (model, tea.Cmd) {
 		return m, nil
 	}
 	m.act.token = ""
-	if n > strictCount || bytes >= strictBytes || repos > 1 {
+	if n > project.Prefs().ConfirmEntries || bytes >= project.Prefs().ConfirmBytes || repos > 1 {
 		m.act.token = m.act.action.Verb
 		m.act.input = newInput(m.act.token)
 	}

@@ -288,7 +288,10 @@ func TestTheRetentionSettingChangesOnlyARepositoryWithAnotherValue(t *testing.T)
 	if m.status != "retention, in days: give a number of days of 1 or more" || len(changes) != 0 {
 		t.Fatalf("status %q, changes %v", m.status, changes)
 	}
-	m = press(t, m, "backspace", "3", "0", "enter")
+	if got := m.act.fields[0].input.Value(); got != "90x" {
+		t.Fatalf("the field starts with the retention of the preferences: %q", got)
+	}
+	m = press(t, m, "backspace", "backspace", "backspace", "3", "0", "enter")
 	if len(changes) != 2 || changes[0].RetentionDays != 30 {
 		t.Fatalf("changes %+v", changes)
 	}

@@ -16,9 +16,6 @@ type advice struct {
 	text  string
 }
 
-// adviceTopRepositories is the number of repositories the first advice names.
-const adviceTopRepositories = 3
-
 // AdviceLines is the text of the advice report: one numbered line for each
 // finding, or one line when there is none, then the total line.
 func AdviceLines(inventories []Project) []string {
@@ -77,7 +74,7 @@ func adviceOf(inventories []Project) []advice {
 
 // largestRepositories names the largest repositories with their sizes.
 func largestRepositories(inventories []Project) (advice, bool) {
-	used, _ := usageOf(inventories, adviceTopRepositories)
+	used, _ := usageOf(inventories, Prefs().AdviceTopRepositories)
 	if len(used) == 0 {
 		return advice{}, false
 	}
@@ -117,8 +114,8 @@ func artifactFindings(inventories []Project) (expired, old, large advice) {
 	expired.text = fmt.Sprintf("Expired artifacts: %d, size %s. They still count against the quota. In a repository of the checklist, x selects them.",
 		expired.count, format.HumanSize(expired.bytes))
 	old.text = fmt.Sprintf("Active artifacts older than %d days: %d, size %s. In a repository of the checklist, o selects them.",
-		OldArtifactDays, old.count, format.HumanSize(old.bytes))
+		Prefs().OldArtifactDays, old.count, format.HumanSize(old.bytes))
 	large.text = fmt.Sprintf("Artifacts of %s or more: %d, size %s. Upload fewer files, or set a shorter retention with --retention-days.",
-		format.HumanSize(LargeArtifactBytes), large.count, format.HumanSize(large.bytes))
+		format.HumanSize(Prefs().LargeArtifactBytes), large.count, format.HumanSize(large.bytes))
 	return expired, old, large
 }

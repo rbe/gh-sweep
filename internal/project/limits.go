@@ -6,24 +6,19 @@ import (
 	"github.com/rbe/gh-sweep/internal/format"
 )
 
-// LargeArtifactBytes is the size from which an artifact is large: 50 MB.
-const LargeArtifactBytes int64 = 50 << 20
-
-// OldArtifactDays is the age in days after which an active artifact is old.
-const OldArtifactDays = 5
-
-// Large tells whether the item is an artifact of LargeArtifactBytes or more.
+// Large tells whether the item is an artifact of the large size of the
+// preferences or more.
 func (it Item) Large() bool {
-	return it.Kind == "artifact" && it.Size >= LargeArtifactBytes
+	return it.Kind == "artifact" && it.Size >= Prefs().LargeArtifactBytes
 }
 
-// Old tells whether the item is an active artifact created more than
-// OldArtifactDays days before now.
+// Old tells whether the item is an active artifact created more than the
+// old days of the preferences before now.
 func (it Item) Old(now time.Time) bool {
 	if it.Kind != "artifact" || it.Expired || it.When.IsZero() {
 		return false
 	}
-	return it.When.Before(now.Add(-OldArtifactDays * 24 * time.Hour))
+	return it.When.Before(now.Add(-time.Duration(Prefs().OldArtifactDays) * 24 * time.Hour))
 }
 
 // WithMinSize gives a copy of the inventories in which each repository keeps

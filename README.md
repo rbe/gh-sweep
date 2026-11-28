@@ -144,7 +144,7 @@ rbe/erechnung: coverage #2101113, size 40.0 MB, created 2026-08-01, expires 2026
 total: artifacts 2, size 552 MB, expired 1, expired size 40.0 MB
 ```
 
-`--artifact-list` shows the workflow of each artifact. It reads the name of each workflow run once. If the run is gone, the workflow is `-`. An artifact of 50 MB or more ends its line with `, large`. `--min-size 50MB` shows only the artifacts of that size or more, and the total counts only those. The size can be bytes, or a number with `KB`, `MB`, or `GB`.
+`--artifact-list` shows the workflow of each artifact. It reads the name of each workflow run once. If the run is gone, the workflow is `-`. A large artifact ends its line with `, large`. By default an artifact is large from 50 MB; the preferences change that. `--min-size 50MB` shows only the artifacts of that size or more, and the total counts only those. The size can be bytes, or a number with `KB`, `MB`, or `GB`.
 
 `--usage --top 5` shows only the 5 largest repositories. The total line and the shares still count every repository.
 
@@ -449,11 +449,27 @@ With `--dry-run`, the action sends no write request, and the result says what wo
 | r | Reload from GitHub. |
 | q | Quit. |
 
-The row of an artifact of 50 MB or more ends with `large` in the warning color.
+The row of a large artifact ends with `large` in the warning color.
 
 Nothing is deleted until the confirmation. One large repository asks you to type its name. Marking more than one repository asks you to type `wipe`.
 
 Checking an artifact group selects every run with that name. Checking a cache group selects every entry with that key, which is the whole cache across refs. Open the group to keep one.
+
+## Preferences
+
+`p` on the project list opens the preferences. Tab moves to the next field, enter saves, and esc goes back without a change.
+
+| Field | Default | Used by |
+| --- | --- | --- |
+| old artifact, days | 5 | `--advice`, and the first value of the prompt of `o` |
+| large artifact, size | 50MB | the mark `large`, and `--advice` |
+| advice, repositories | 3 | the first line of `--advice` |
+| keep newest (t) | 3 | the first value of the prompt of `t` |
+| retention, days | 90 | the first value of the retention field in the action menu |
+| type to confirm, entries | 20 | more entries than this ask you to type the name or the verb |
+| type to confirm, size | 1GB | this size or more asks you to type the name or the verb |
+
+A size is bytes, or a number with `KB`, `MB`, or `GB`. gh-sweep saves the preferences to `gh-sweep/preferences.json` in the user configuration directory: `~/.config` on Linux, and `~/Library/Application Support` on macOS. The command line reads the same file. A key that the file does not name keeps its default. If the file has an unknown key or a value out of range, gh-sweep stops with the path and the key. In the container of `make run`, the file is lost when the container stops.
 
 ## What gets deleted
 

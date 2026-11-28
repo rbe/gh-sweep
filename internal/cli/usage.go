@@ -66,6 +66,8 @@ Project keys:
   d           delete everything marked
   s           scan sizes
   u           storage usage of the scanned projects
+  m           action menu
+  p           preferences, saved to the preferences file
   +           add owner/repo
   /           filter
   q           quit

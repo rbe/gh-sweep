@@ -24,6 +24,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "gh-sweep: %s\n", err)
 		return 2
 	}
+	if cmd.options.PreferencesPath, err = loadPreferences(); err != nil {
+		fmt.Fprintf(stderr, "gh-sweep: %s\n", err)
+		return 1
+	}
 	switch {
 	case cmd.job != nil:
 		err = runJob(cmd.options, cmd.job, cmd.filter, stdout, stderr)
@@ -39,6 +43,20 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// loadPreferences reads the preferences file and puts its values in force.
+// It gives the path of the file, which the checklist writes.
+func loadPreferences() (string, error) {
+	path, err := project.PreferencesPath()
+	if err != nil {
+		return "", nil
+	}
+	p, err := project.LoadPreferences(path)
+	if err != nil {
+		return "", err
+	}
+	return path, project.UsePreferences(p)
 }
 
 // command is one parsed command line: the options of the checklist, the
