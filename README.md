@@ -146,6 +146,40 @@ total: artifacts 2, size 552 MB, expired 1, expired size 40.0 MB
 
 Use only one of `--summary`, `--usage`, and `--artifact-list`. `--artifact-list` together with `--caches-only` is an error. Errors from `gh`, the skipped lines, and the other flags behave as for `--summary`.
 
+### Report formats and files
+
+```bash
+gh-sweep --summary --format json rbe/erechnung
+gh-sweep --usage --format csv --output usage.csv --mine
+gh-sweep --artifact-list --format json --output artifacts.json rbe/erechnung
+```
+
+`--format` takes `text` (the default), `json`, or `csv`. `--output` writes the report to a file and nothing to standard output. Both work only with `--summary`, `--usage`, or `--artifact-list`. Put them before the repository names.
+
+JSON is one object with the keys `report`, `rows`, `skipped`, and `total`. Sizes are bytes, and dates are RFC 3339 times in UTC, or `null`:
+
+```json
+{
+  "report": "summary",
+  "rows": [
+    {
+      "repository": "rbe/erechnung",
+      "artifacts": 42,
+      "caches": 7,
+      "bytes": 3650722201
+    }
+  ],
+  "skipped": [],
+  "total": {
+    "artifacts": 42,
+    "caches": 7,
+    "bytes": 3650722201
+  }
+}
+```
+
+CSV has a header record, one record for each row, and one record for each skipped repository. The last two columns are `result` (`ok` or `skipped`) and `error`. CSV has no total record. A skipped repository still makes the exit status 1. [ADR-0017](docs/adr/ADR-0017.md) lists the keys of each report.
+
 ### Repository settings
 
 ```bash

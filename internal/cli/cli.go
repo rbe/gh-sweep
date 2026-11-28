@@ -30,7 +30,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case !cmd.settings.Empty():
 		err = applySettings(cmd.options, cmd.settings, stdout, stderr)
 	case cmd.report != nil:
-		err = printReport(cmd.options, cmd.report, stdout, stderr)
+		err = printReport(cmd.options, cmd.report, cmd.output, stdout, stderr)
 	default:
 		err = ui.Run(cmd.options)
 	}
@@ -46,6 +46,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 type command struct {
 	options  ui.Options
 	report   *report
+	output   reportOutput
 	settings project.SettingsChange
 	job      *sweep.Action
 	filter   project.Filter
@@ -64,6 +65,8 @@ func parseCLI(args []string) (command, error) {
 	summary := fs.Bool("summary", false, "print one line for each repository and a total line, then exit")
 	usage := fs.Bool("usage", false, "print the storage of each repository, largest first, then exit")
 	artifactList := fs.Bool("artifact-list", false, "print one line for each artifact with size, dates, and status, then exit")
+	format := fs.String("format", "text", "write the report as text, json, or csv")
+	output := fs.String("output", "", "write the report to this file instead of standard output")
 	filter := fs.String("filter", "", "initial item filter")
 	var settings project.SettingsChange
 	fs.Func("retention-days", "set the artifact and log retention to this number of days, then exit", func(v string) error {
@@ -101,6 +104,16 @@ func parseCLI(args []string) (command, error) {
 	if err != nil {
 		return command{}, err
 	}
+	formatGiven := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "format" {
+			formatGiven = true
+		}
+	})
+	out := reportOutput{format: *format, path: *output}
+	if err := checkReportOutput(out, chosen, formatGiven); err != nil {
+		return command{}, err
+	}
 	named := len(repos) > 0 || *org != "" || *user != "" || *mine
 	if err := checkSettingsTarget(settings, chosen, named); err != nil {
 		return command{}, err
@@ -129,6 +142,7 @@ func parseCLI(args []string) (command, error) {
 			Filter:    *filter,
 		},
 		report:   chosen,
+		output:   out,
 		settings: settings,
 		job:      j,
 		filter:   jobs.filter,
